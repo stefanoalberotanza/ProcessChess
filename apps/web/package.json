@@ -6,18 +6,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && node scripts/precache-extra.js",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@processchess/core": "workspace:*",
-    "chess.js": "1.4.0",
+    "@processchess/db": "workspace:*",
     "chessground": "^9.2.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.70.3",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
