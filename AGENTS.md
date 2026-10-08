@@ -33,13 +33,16 @@ Design decisions are recorded in [`docs/adr/`](docs/adr).
 apps/web/                     SvelteKit app (@processchess/web)
   src/lib/Board.svelte        the only chessground import (promotion picker, arrows)
   src/lib/app.svelte.ts       bootstrap: OPFS storage, migrations, openings dataset
+  src/lib/drill.svelte.ts     DrillController: drill UI state + attempt logging
   src/lib/i18n/               en.ts (keys), it.ts, t()
-  src/lib/components/         OpeningBar, MoveTree, MoveHistory, ImportForm
-  src/routes/                 / (collections + import), /collection?id=, /drill?id=
+  src/lib/components/         RepertoireList, ExplorePanel, RepertoirePanel, DrillPanel,
+                              OpeningBar, MoveTree, MoveHistory, ImportForm
+  src/routes/+page.svelte     the workspace (single route, ?c=<collection>&tab=…)
   src/service-worker.ts       offline precache
   e2e/                        Playwright tests; scripts/serve-build.js serves build/
 packages/core/                @processchess/core — pure logic, no UI, no I/O
-  src/openings/               resolveOpening(), loadOpenings(), generated openings.json
+  src/openings/               resolveOpening(), loadOpenings(), opening graph (book moves,
+                              book lines, search); generated openings.json, opening-graph.json
   src/tree/                   move tree: addLine, setMainLine, setComment, deleteSubtree, layout
   src/pgn/                    parsePgn, importPgn/treeFromPgn, exportPgn
   src/drill/                  line drill engine
@@ -67,7 +70,7 @@ pnpm typecheck       # tsc / svelte-check in every package
 pnpm test            # vitest in every package
 pnpm build           # builds apps/web (static site in apps/web/build)
 pnpm test:e2e        # Playwright against apps/web/build (run pnpm build first)
-pnpm build:openings  # regenerate openings.json from data/openings/*.tsv
+pnpm build:openings  # regenerate openings.json + opening-graph.json from data/openings/*.tsv
 pnpm --filter @processchess/db db:generate --name <change>  # migration + migrations.generated.ts
 pnpm --filter @processchess/web dev
 ```
@@ -106,5 +109,5 @@ push; CI runs the same. Locally Playwright uses the Chromium in `PLAYWRIGHT_BROW
 5. `packages/core` stays pure: no DOM, no storage, no network.
 6. The UI calls only `@processchess/core` and `@processchess/db` (no chess.js in apps/web);
    logic goes in core with unit tests.
-7. Do not hand-edit generated files (`openings.json`, `packages/db/drizzle/*`,
+7. Do not hand-edit generated files (`openings.json`, `opening-graph.json`, `packages/db/drizzle/*`,
    `migrations.generated.ts`); regenerate them.
