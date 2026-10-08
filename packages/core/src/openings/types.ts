@@ -15,3 +15,12 @@ export interface ResolvedOpening {
   /** Ply (half-move count) of the deepest named position reached by the line. */
   ply: number;
 }
+
+/**
+ * Shape of the generated `opening-graph.json`: one entry per position, `[epdHash, edges]`,
+ * edges as space-separated `uci,childIndex,lines` (indexes and counts in base 36), sorted by
+ * lines descending. Node 0 is the initial position.
+ */
+export interface OpeningGraphJson {
+  nodes: [hash: string, edges: string][];
+}
