@@ -1,23 +1,14 @@
 import { Chess } from 'chess.js';
+import { IllegalMoveError } from '../errors';
 import { toEpd } from '../fen';
-import { openings } from './data';
-import type { OpeningEntry, ResolvedOpening } from './types';
+import { openingIndex } from './data';
+import type { ResolvedOpening } from './types';
 
-export class IllegalMoveError extends Error {
-  constructor(
-    readonly san: string,
-    readonly ply: number,
-  ) {
-    super(`Illegal or unparsable move "${san}" at ply ${ply}`);
-    this.name = 'IllegalMoveError';
+export class OpeningsNotLoadedError extends Error {
+  constructor() {
+    super('Openings dataset not loaded: await loadOpenings() first');
+    this.name = 'OpeningsNotLoadedError';
   }
-}
-
-let index: Map<string, OpeningEntry> | undefined;
-
-function openingIndex(): Map<string, OpeningEntry> {
-  index ??= new Map(openings.map((e) => [e.epd, e]));
-  return index;
 }
 
 /** Splits "Family: Variation, Subvariation" into its family and variation parts. */
@@ -35,8 +26,11 @@ export function splitOpeningName(name: string): { family: string; variation: str
  * leave theory report the last named position (with its ply).
  *
  * @throws IllegalMoveError if a move is illegal or not valid SAN.
+ * @throws OpeningsNotLoadedError if `loadOpenings()` has not resolved yet.
  */
 export function resolveOpening(movesSan: readonly string[]): ResolvedOpening | null {
+  const lookup = openingIndex();
+  if (!lookup) throw new OpeningsNotLoadedError();
   const chess = new Chess();
   const epds: string[] = [];
   for (const [i, san] of movesSan.entries()) {
@@ -48,10 +42,12 @@ export function resolveOpening(movesSan: readonly string[]): ResolvedOpening | n
     epds.push(toEpd(chess.fen()));
   }
 
-  const lookup = openingIndex();
   for (let ply = epds.length; ply >= 1; ply--) {
     const entry = lookup.get(epds[ply - 1]!);
-    if (entry) return { eco: entry.eco, name: entry.name, ...splitOpeningName(entry.name), ply };
+    if (entry) {
+      const [eco, name] = entry;
+      return { eco, name, ...splitOpeningName(name), ply };
+    }
   }
   return null;
 }

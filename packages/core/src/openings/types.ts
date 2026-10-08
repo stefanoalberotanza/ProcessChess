@@ -1,14 +1,8 @@
-/** One row of the generated openings dataset (`openings.json`). */
-export interface OpeningEntry {
-  eco: string;
-  name: string;
-  /** Moves from the initial position, space-separated UCI. */
-  uci: string;
-  /** EPD of the final position (see `toEpd`). */
-  epd: string;
-  /** Number of half-moves in `uci`. */
-  ply: number;
-}
+/** Shape of the generated `openings.json`: EPD → [ECO code, full name]. */
+export type OpeningIndexJson = Record<string, [eco: string, name: string]>;
+
+/** In-memory index used by `resolveOpening`. */
+export type OpeningIndex = ReadonlyMap<string, readonly [eco: string, name: string]>;
 
 export interface ResolvedOpening {
   eco: string;

@@ -1,4 +1,5 @@
+export { IllegalMoveError } from './errors';
 export { toEpd } from './fen';
-export { IllegalMoveError, resolveOpening, splitOpeningName } from './openings/resolve';
-export { openings } from './openings/data';
-export type { OpeningEntry, ResolvedOpening } from './openings/types';
+export { isOpeningsLoaded, loadOpenings } from './openings/data';
+export { OpeningsNotLoadedError, resolveOpening, splitOpeningName } from './openings/resolve';
+export type { OpeningIndex, ResolvedOpening } from './openings/types';

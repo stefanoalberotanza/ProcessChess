@@ -1,5 +1,26 @@
-import data from './openings.json';
-import type { OpeningEntry } from './types';
+import type { OpeningIndex, OpeningIndexJson } from './types';
 
-/** The full generated dataset (one entry per unique EPD). */
-export const openings: readonly OpeningEntry[] = data as OpeningEntry[];
+let index: OpeningIndex | undefined;
+let pending: Promise<OpeningIndex> | undefined;
+
+/**
+ * Loads the openings dataset (a separate lazy chunk in the web build). Memoised; call it once
+ * at startup and await it before using `resolveOpening`.
+ */
+export function loadOpenings(): Promise<OpeningIndex> {
+  pending ??= import('./openings.json').then((mod) => {
+    const json = mod.default as OpeningIndexJson;
+    index = new Map(Object.entries(json));
+    return index;
+  });
+  return pending;
+}
+
+export function isOpeningsLoaded(): boolean {
+  return index !== undefined;
+}
+
+/** The loaded index, or undefined before `loadOpenings()` resolves. */
+export function openingIndex(): OpeningIndex | undefined {
+  return index;
+}
