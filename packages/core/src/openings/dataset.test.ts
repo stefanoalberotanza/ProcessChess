@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildOpeningIndex } from './build';
+import { buildOpeningData, buildOpeningIndex } from './build';
+import committedGraph from './opening-graph.json';
 import committed from './openings.json';
 import { splitOpeningName } from './resolve';
 
@@ -9,10 +10,11 @@ const dataDir = join(import.meta.dirname, '../../../../data/openings');
 const tsv = ['a', 'b', 'c', 'd', 'e'].map((v) => readFileSync(join(dataDir, `${v}.tsv`), 'utf8'));
 
 describe('openings dataset', () => {
-  it('openings.json is up to date with data/openings/*.tsv (run pnpm build:openings)', () => {
-    const { index, rows } = buildOpeningIndex(tsv);
+  it('openings.json and opening-graph.json are up to date (run pnpm build:openings)', () => {
+    const { index, graph, rows } = buildOpeningData(tsv);
     expect(rows).toBe(3865);
     expect(index).toEqual(committed);
+    expect(graph).toEqual(committedGraph);
   }, 60_000);
 
   it('keeps the shortest line when two rows reach the same EPD', () => {
