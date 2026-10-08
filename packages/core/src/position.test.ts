@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_FEN, describePosition, playMove, sanToUci, uciToSan } from './position';
+import { INITIAL_FEN, describePosition, playLine, playMove, sanToUci, uciToSan } from './position';
 
 const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
 
@@ -29,5 +29,19 @@ describe('position helpers', () => {
     expect(sanToUci(INITIAL_FEN, 'Nf3!?')).toBe('g1f3');
     expect(sanToUci(INITIAL_FEN, 'Ke2')).toBeNull();
     expect(sanToUci('7k/P7/8/8/8/8/8/K7 w - - 0 1', 'a8=Q+')).toBe('a7a8q');
+  });
+});
+
+describe('playLine', () => {
+  it('replays UCI moves returning SAN and the final FEN', () => {
+    expect(playLine(INITIAL_FEN, ['e2e4', 'e7e5'])).toEqual({
+      san: ['e4', 'e5'],
+      fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
+    });
+    expect(playLine(INITIAL_FEN, [])).toEqual({ san: [], fen: INITIAL_FEN });
+  });
+
+  it('returns null at the first illegal move', () => {
+    expect(playLine(INITIAL_FEN, ['e2e4', 'e2e4'])).toBeNull();
   });
 });

@@ -12,6 +12,7 @@ import {
   emptyTree,
   fenAt,
   findChildByUci,
+  nodeAtPath,
   pathTo,
   setComment,
   setMainLine,
@@ -210,5 +211,15 @@ describe('archiveCollection', () => {
     const c = archiveCollection({ id: 'c1', archivedAt: null }, now);
     expect(c).toEqual({ id: 'c1', archivedAt: now });
     expect(archiveCollection(c, new Date('2027-01-01')).archivedAt).toBe(now);
+  });
+});
+
+describe('nodeAtPath', () => {
+  it('follows UCI moves from the root and reports how far the tree goes', () => {
+    const { tree, nodeIds } = italianTree();
+    expect(nodeAtPath(tree, [])).toEqual({ nodeId: tree.rootId, depth: 0 });
+    expect(nodeAtPath(tree, ['e2e4', 'e7e5'])).toEqual({ nodeId: nodeIds[1], depth: 2 });
+    // leaves the tree after 1.e4: the deepest node on the path is returned
+    expect(nodeAtPath(tree, ['e2e4', 'c7c5', 'g1f3'])).toEqual({ nodeId: nodeIds[0], depth: 1 });
   });
 });

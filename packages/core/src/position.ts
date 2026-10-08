@@ -55,3 +55,19 @@ export function sanToUci(fen: string, san: string): string | null {
     return null;
   }
 }
+
+/** Replays UCI moves from `fen`; null if a move is illegal. */
+export function playLine(
+  fen: string,
+  ucis: readonly string[],
+): { san: string[]; fen: string } | null {
+  let current = fen;
+  const san: string[] = [];
+  for (const uci of ucis) {
+    const r = playMove(current, uci);
+    if (!r) return null;
+    san.push(r.san);
+    current = r.fen;
+  }
+  return { san, fen: current };
+}

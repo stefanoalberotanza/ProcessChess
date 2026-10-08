@@ -65,6 +65,22 @@ export function findChildByUci(tree: Tree, parentId: string, uci: string): TreeN
   return childrenOf(tree, parentId).find((c) => c.uci === uci);
 }
 
+/**
+ * Follows `ucis` from the root as far as the tree goes: the deepest node reached and how many
+ * moves of `ucis` it covers.
+ */
+export function nodeAtPath(tree: Tree, ucis: readonly string[]): { nodeId: string; depth: number } {
+  let nodeId = tree.rootId;
+  let depth = 0;
+  for (const uci of ucis) {
+    const next = findChildByUci(tree, nodeId, uci);
+    if (!next) break;
+    nodeId = next.id;
+    depth++;
+  }
+  return { nodeId, depth };
+}
+
 /** Nodes from the root to `id`, inclusive. */
 export function pathTo(tree: Tree, id: string): TreeNode[] {
   const path: TreeNode[] = [];

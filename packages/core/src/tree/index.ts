@@ -8,6 +8,7 @@ export {
   emptyTree,
   fenAt,
   findChildByUci,
+  nodeAtPath,
   parseUci,
   pathTo,
   plyOf,
