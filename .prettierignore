@@ -7,3 +7,5 @@ data/openings/*.tsv
 packages/core/src/openings/openings.json
 packages/db/drizzle/meta
 packages/db/src/migrations.generated.ts
+test-results
+playwright-report

@@ -7,3 +7,5 @@ coverage/
 .DS_Store
 .env
 *.sqlite
+test-results/
+playwright-report/
