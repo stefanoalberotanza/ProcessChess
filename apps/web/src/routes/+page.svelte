@@ -29,6 +29,7 @@
   import { app, storage } from '$lib/app.svelte';
   import DrillPanel from '$lib/components/DrillPanel.svelte';
   import ExplorePanel from '$lib/components/ExplorePanel.svelte';
+  import GraphPanel from '$lib/components/GraphPanel.svelte';
   import ImportForm from '$lib/components/ImportForm.svelte';
   import OpeningBar from '$lib/components/OpeningBar.svelte';
   import RepertoireList, { type RepertoireRow } from '$lib/components/RepertoireList.svelte';
@@ -36,8 +37,8 @@
   import { DrillController } from '$lib/drill.svelte';
   import { t } from '$lib/i18n/index.svelte';
 
-  type Tab = 'explore' | 'repertoire' | 'train';
-  const TABS: Tab[] = ['explore', 'repertoire', 'train'];
+  type Tab = 'explore' | 'graph' | 'repertoire' | 'train';
+  const TABS: Tab[] = ['explore', 'graph', 'repertoire', 'train'];
 
   // ---- data ---------------------------------------------------------------------------
   let graph = $state.raw<OpeningGraph | null>(null);
@@ -406,7 +407,7 @@
 
 <svelte:window {onkeydown} />
 
-<div class="workspace">
+<div class="workspace" class:wide={tab === 'graph'}>
   <aside class="left">
     {#if dueTotal > 0 || rows.length > 0}
       <p class="due-summary" data-testid="due-summary">
@@ -428,6 +429,7 @@
   <section class="center" aria-label={t('board.label')}>
     <OpeningBar movesSan={barMoves} {outOfRepertoire} />
     <Board
+      maxSize={tab === 'graph' ? 380 : 520}
       fen={boardFen}
       orientation={selected?.userColor === 'b' ? 'black' : 'white'}
       interactive={training ? ctl.awaitingMove : true}
@@ -527,6 +529,14 @@
           onjump={(u) => goTo(u)}
           onaddbook={(lines) => void addBook(lines)}
         />
+      {:else if tab === 'graph'}
+        <GraphPanel
+          {graph}
+          {ucis}
+          orientation={selected?.userColor === 'b' ? 'black' : 'white'}
+          inRepertoire={(path) => !!tree && nodeAtPath(tree, path).depth === path.length}
+          onjump={(u) => goTo(u)}
+        />
       {:else if !selected || !tree}
         <p class="muted">{t('rep.selectFirst')}</p>
       {:else if tab === 'repertoire'}
@@ -588,8 +598,13 @@
     gap: 1.25rem;
     align-items: start;
   }
+  /* graph tab: smaller board, the graph takes the room */
+  .workspace.wide {
+    grid-template-columns: minmax(180px, 220px) auto minmax(0, 1fr);
+  }
   @media (max-width: 1100px) {
-    .workspace {
+    .workspace,
+    .workspace.wide {
       grid-template-columns: 1fr;
     }
   }

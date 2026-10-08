@@ -125,6 +125,11 @@ export const it = {
   'drill.restart': 'Ricomincia',
 
   'tabs.label': 'Area di lavoro',
+  'tabs.graph': 'Grafo',
+  'graph.label': 'Grafo delle aperture',
+  'graph.lines': '{n} linee',
+  'graph.help':
+    'Ogni nodo mostra la scacchiera dopo la sua mossa. Clicca un nodo per andarci: scacchiera, elenchi e albero lo seguono.',
   'tabs.explore': 'Aperture',
   'tabs.repertoire': 'Repertorio',
   'tabs.train': 'Allenamento',

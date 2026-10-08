@@ -35,6 +35,8 @@
     shapes?: BoardShape[];
     /** Called with a UCI move (promotion piece included). Return false to undo it on the board. */
     onmove?: (uci: string) => boolean | void;
+    /** Maximum width in px (default 520). */
+    maxSize?: number;
   }
 
   let {
@@ -44,6 +46,7 @@
     lastMove,
     shapes = [],
     onmove,
+    maxSize = 520,
   }: Props = $props();
 
   let el: HTMLDivElement;
@@ -111,7 +114,12 @@
   });
 </script>
 
-<div class="board" role="group" aria-label={t('board.label')}>
+<div
+  class="board"
+  role="group"
+  aria-label={t('board.label')}
+  style:width={`min(92vw, ${maxSize}px)`}
+>
   <div bind:this={el} class="cg"></div>
   {#if promotion}
     <div class="promotion" role="dialog" aria-label={t('board.promotion')}>
@@ -136,7 +144,6 @@
 <style>
   .board {
     position: relative;
-    width: min(92vw, 520px);
     aspect-ratio: 1;
   }
   .cg {

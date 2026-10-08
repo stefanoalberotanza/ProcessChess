@@ -120,6 +120,11 @@ export const en = {
   'drill.restart': 'Start again',
 
   'tabs.label': 'Workspace',
+  'tabs.graph': 'Graph',
+  'graph.label': 'Opening graph',
+  'graph.lines': '{n} lines',
+  'graph.help':
+    'Each node shows the board after its move. Click a node to go there; the board, the lists and the tree follow.',
   'tabs.explore': 'Openings',
   'tabs.repertoire': 'Repertoire',
   'tabs.train': 'Training',
