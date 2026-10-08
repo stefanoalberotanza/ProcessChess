@@ -1,0 +1,17 @@
+% ProcessChess test fixture: a small White repertoire written by hand (two games that overlap).
+[Event "White repertoire: 1.e4"]
+[Site "?"]
+[Date "2026.10.01"]
+[White "Repertoire"]
+[Black "?"]
+[Result "*"]
+
+{ Main repertoire with 1.e4. } 1. e4 e5 (1... c5 { Sicilian: go Open. } 2. Nf3 d6
+(2... Nc6 3. Bb5) 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3) 2. Nf3 $1 Nc6 3. Bc4!? { Italian. }
+3... Bc5 (3... Nf6 4. d3 $5) 4. c3 Nf6 5. d4 *
+
+[Event "White repertoire: quiet Giuoco"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d3 ; the quiet option
+(5. d4 exd4) 1-0
