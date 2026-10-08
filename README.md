@@ -4,8 +4,9 @@ Open-source, local-first trainer for chess sequences: play a line again and agai
 spaced repetition (FSRS) and a full history of every attempt. Openings first; famous games,
 mates, patterns and endgames later. Web (PWA), desktop and mobile (Tauri 2) from one frontend.
 
-Status: **M1 – web MVP**: import a PGN repertoire and train it line by line in the browser,
-offline, with every attempt saved locally (SQLite in OPFS).
+Status: **M2 – spaced repetition**: import a PGN repertoire, train it line by line, then review
+only the moves that are due (FSRS, one card per move) and follow your daily statistics — in the
+browser, offline, with every attempt saved locally (SQLite in OPFS).
 
 ## Development
 

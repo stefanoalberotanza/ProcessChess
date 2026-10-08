@@ -1,8 +1,8 @@
 # M2 — FSRS scheduling, due review and daily statistics (design)
 
 - Date: 2026-10-08
-- Status: approved for implementation (decisions below were taken autonomously during
-  brainstorming; each one lists the alternative that was rejected)
+- Status: implemented (see ADR 003 and ADR 009)
+- Decisions were taken without a live Q&A; each one names the alternative it rejected.
 - Builds on: ADR 002 (storage), ADR 003 (spaced repetition), ADR 006 (line drill)
 
 ## Goal
