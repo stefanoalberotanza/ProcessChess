@@ -1,4 +1,5 @@
 export * from './drill';
+export * from './lab';
 export { IllegalMoveError } from './errors';
 export { toEpd } from './fen';
 export { isOpeningsLoaded, loadOpenings } from './openings/data';

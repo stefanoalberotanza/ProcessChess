@@ -23,6 +23,8 @@ export interface OpeningGraph {
   children(node: number): readonly GraphEdge[];
   /** Moves (UCI) of a shortest path from the initial position to `node`. */
   pathTo(node: number): string[];
+  /** Dataset lines that reach `node` (all of them for the initial position). */
+  linesThrough(node: number): number;
 }
 
 function decode(json: OpeningGraphJson): OpeningGraph {
@@ -35,6 +37,9 @@ function decode(json: OpeningGraphJson): OpeningGraph {
       return { uci: uci!, child: parseInt(child!, 36), lines: parseInt(lines!, 36) };
     });
   });
+  const inLines = new Array<number>(kids.length).fill(0);
+  for (const edges of kids) for (const e of edges) inLines[e.child]! += e.lines;
+  inLines[0] = kids[0]!.reduce((n, e) => n + e.lines, 0);
   // breadth-first parents → shortest paths
   const parent = new Int32Array(kids.length).fill(-1);
   const via: string[] = new Array(kids.length);
@@ -54,6 +59,7 @@ function decode(json: OpeningGraphJson): OpeningGraph {
     size: kids.length,
     nodeOf: (epd) => byHash.get(epdHash(epd)),
     children: (node) => kids[node] ?? [],
+    linesThrough: (node) => inLines[node] ?? 0,
     pathTo: (node) => {
       const path: string[] = [];
       for (let n = node; n !== 0; n = parent[n]!) {
