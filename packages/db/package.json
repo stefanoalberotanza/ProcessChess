@@ -11,15 +11,15 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate && tsx ../../scripts/build-migrations.ts"
   },
   "dependencies": {
     "@processchess/core": "workspace:*",
-    "chess.js": "1.4.0",
     "drizzle-orm": "^0.45.4",
     "ulid": "^3.0.2"
   },
   "devDependencies": {
+    "chess.js": "1.4.0",
     "drizzle-kit": "^0.31.11"
   }
 }
