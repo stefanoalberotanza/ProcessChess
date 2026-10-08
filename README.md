@@ -4,7 +4,8 @@ Open-source, local-first trainer for chess sequences: play a line again and agai
 spaced repetition (FSRS) and a full history of every attempt. Openings first; famous games,
 mates, patterns and endgames later. Web (PWA), desktop and mobile (Tauri 2) from one frontend.
 
-Status: **M0 – foundations** (opening recognition, database schema, test page).
+Status: **M1 – web MVP**: import a PGN repertoire and train it line by line in the browser,
+offline, with every attempt saved locally (SQLite in OPFS).
 
 ## Development
 
@@ -12,8 +13,8 @@ Requires Node ≥ 22.13 and pnpm 10.
 
 ```sh
 pnpm install
-pnpm --filter @processchess/web dev   # test page on http://localhost:5173
-pnpm lint && pnpm typecheck && pnpm test && pnpm build
+pnpm --filter @processchess/web dev   # app on http://localhost:5173
+pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e
 ```
 
 See [AGENTS.md](AGENTS.md) for structure and conventions and [docs/adr](docs/adr) for design decisions.
