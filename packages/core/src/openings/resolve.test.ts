@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { IllegalMoveError, resolveOpening } from './resolve';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { loadOpenings } from './data';
+import { IllegalMoveError } from '../errors';
+import { resolveOpening } from './resolve';
 
 // Expected names are copied from data/openings/*.tsv (lichess-org/chess-openings), not from memory.
 
 describe('resolveOpening', () => {
+  beforeAll(() => loadOpenings());
+
   it('returns null for the empty sequence (start position is not a named opening)', () => {
     expect(resolveOpening([])).toBeNull();
   });

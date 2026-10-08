@@ -1,28 +1,31 @@
-import { Chess } from 'chess.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { toEpd } from '../fen';
-import { openings } from './data';
+import { buildOpeningIndex } from './build';
+import committed from './openings.json';
 import { splitOpeningName } from './resolve';
 
+const dataDir = join(import.meta.dirname, '../../../../data/openings');
+const tsv = ['a', 'b', 'c', 'd', 'e'].map((v) => readFileSync(join(dataDir, `${v}.tsv`), 'utf8'));
+
 describe('openings dataset', () => {
-  it('has one entry per EPD', () => {
-    expect(new Set(openings.map((o) => o.epd)).size).toBe(openings.length);
+  it('openings.json is up to date with data/openings/*.tsv (run pnpm build:openings)', () => {
+    const { index, rows } = buildOpeningIndex(tsv);
+    expect(rows).toBe(3865);
+    expect(index).toEqual(committed);
+  }, 60_000);
+
+  it('keeps the shortest line when two rows reach the same EPD', () => {
+    const header = 'eco\tname\tpgn';
+    const { index } = buildOpeningIndex([
+      `${header}\nB01\tLong Name\t1. e4 d5 2. Nf3 Nf6 3. Ng1 Ng8\nA00\tShort Name\t1. e4 d5\n`,
+    ]);
+    expect(Object.values(index)).toEqual([['A00', 'Short Name']]);
   });
 
-  it('every entry replays with chess.js to its EPD', () => {
-    const mismatches: string[] = [];
-    for (const o of openings) {
-      const chess = new Chess();
-      const moves = o.uci.split(' ');
-      for (const m of moves) {
-        chess.move({ from: m.slice(0, 2), to: m.slice(2, 4), promotion: m[4] });
-      }
-      if (toEpd(chess.fen()) !== o.epd || moves.length !== o.ply) {
-        mismatches.push(`${o.eco} ${o.name}`);
-      }
-    }
-    expect(mismatches).toEqual([]);
-  }, 30_000);
+  it('rejects illegal PGN in the source', () => {
+    expect(() => buildOpeningIndex(['eco\tname\tpgn\nA00\tBad\t1. e5\n'])).toThrow();
+  });
 });
 
 describe('splitOpeningName', () => {
