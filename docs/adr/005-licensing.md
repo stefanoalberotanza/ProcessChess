@@ -8,7 +8,8 @@
 We would like a permissive license (MIT) to maximise reuse, but the best board UI available,
 **chessground**, is GPL-3.0-or-later. Linking it into the app makes the distributed app GPL.
 Other dependencies are permissive: chess.js (BSD-2-Clause), Drizzle (Apache-2.0), SvelteKit
-(MIT), ts-fsrs (MIT), ulid (MIT). Opening data is CC0.
+(MIT), ts-fsrs (MIT), ulid (MIT), `@sqlite.org/sqlite-wasm` (Apache-2.0; SQLite itself is
+public domain), `@playwright/test` (Apache-2.0, dev only). Opening data is CC0.
 
 ## Decision
 

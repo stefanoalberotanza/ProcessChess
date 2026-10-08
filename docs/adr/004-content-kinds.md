@@ -18,11 +18,15 @@ They differ in where they start and in what counts as a right answer.
 - Two **evaluation modes** (`eval_mode`):
   - **`exact`**: the user must play the repertoire move. Sibling user-move nodes under the same
     parent are **accepted alternatives**; `ord = 0` is the main line, played by default.
+    Playing an alternative is accepted and the drill continues in its subtree (ADR 006).
     Used by openings, games, mates and patterns.
   - **`result`**: any move that preserves the theoretical result (win/draw) is accepted,
     checked with an endgame **tablebase**. Used by endgames. **Not implemented yet.**
 - Opening classification (`opening_eco`, `opening_name`) is optional metadata on nodes,
-  computed with `resolveOpening` (only meaningful from the standard start position).
+  computed with `resolveOpening` (only meaningful from the standard start position). In M1 the
+  UI computes it on the fly and the columns stay empty.
+- M1 imports every PGN as an `opening` collection with `eval_mode = 'exact'`; a FEN header is
+  honoured as `start_fen`, but drills from arbitrary positions are M3.
 
 ## Consequences
 

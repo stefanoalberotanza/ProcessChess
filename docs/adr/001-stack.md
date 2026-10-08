@@ -26,6 +26,12 @@ stay easy to contribute to. Chess rules must be correct by construction.
   (FEN, side to move, legal destinations, `onmove`). Replacing it with cm-chessboard touches
   one file (ADR 005).
 - **Native**: Tauri 2 in a later phase, reusing the web build.
+- **Layering (M1)**: the UI calls only `@processchess/core` and `@processchess/db`; it does not
+  import chess.js directly. All chess logic (PGN, tree edits, drill, SAN/UCI) lives in core with
+  unit tests; end-to-end behaviour is covered by Playwright (`@playwright/test`).
+- **Openings dataset (M1)**: a compact `epd → [eco, name]` JSON (~460 kB, ~70 kB gzipped),
+  loaded lazily with `loadOpenings()` into its own chunk; `resolveOpening` throws
+  `OpeningsNotLoadedError` until it has resolved.
 - Tooling versions are pinned to the latest mature majors (TypeScript 5.9, ESLint 9,
   Vitest 3, Vite 7, SvelteKit 2) rather than freshly released majors.
 

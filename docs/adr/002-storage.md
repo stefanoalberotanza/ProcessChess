@@ -1,6 +1,6 @@
 # ADR 002 — Storage
 
-- Status: accepted
+- Status: accepted (updated for M1)
 - Date: 2026-10-08
 
 ## Context
@@ -17,8 +17,25 @@ on the web and in Tauri. We want one schema, one query layer and real SQL everyw
 - **Drizzle ORM** defines the schema (`packages/db/src/schema.ts`); **drizzle-kit** generates
   SQL migrations into `packages/db/drizzle/`.
 - All adapters use Drizzle's **`sqlite-proxy`** driver: an adapter only supplies an async
-  `(sql, params, method) → rows` transport and a migration runner. The `Storage`
-  implementation (`SqliteStorage`) is written once and shared.
+  `SqlExecutor` — `(sql, params, method) → rows`. The `Storage` implementation
+  (`SqliteStorage`) is written once and shared.
+- **Web adapter (M1)**: `@sqlite.org/sqlite-wasm` (Apache-2.0, pinned to `3.53.4-build1`) in a
+  dedicated Web Worker with the **`opfs-sahpool`** VFS, which works without COOP/COEP headers.
+  The page talks to it with a small `postMessage` protocol (`open`, `exec`).
+- **Fallback**: if the pool cannot be installed (no OPFS, private mode, or another tab already
+  holds the pool — the VFS is exclusive), the worker opens an in-memory database and the app
+  shows a visible banner: "data will not be saved".
+- **Migrations are bundled**: `scripts/build-migrations.ts` turns the drizzle-kit output into
+  `packages/db/src/migrations.generated.ts` (run by `db:generate`); `runMigrations(exec)` applies
+  pending ones through the executor, each in a transaction, and records them in a
+  `__migrations(tag, applied_at)` table. Tests on `node:sqlite` use the same migrator, and a test
+  fails if the generated module is out of date.
+- **Archiving instead of deleting (M1)**: `collection.archived_at`; archived collections are
+  hidden by default and can be restored. Collections are never deleted. Tree edits may delete
+  nodes only when none of them has attempts (`deleteSubtree` refuses otherwise).
+- **`line_pass` (M1)** is a second append-only log: one row per completed pass through a line
+  (`line_id` = leaf node id, `clean`, `diverged`), from which line cleanliness is derived
+  (ADR 006). `line_id` is not a foreign key because lines are derived from the tree.
 - **`attempt` is an append-only log**: one row per move played in a drill (result
   `correct | hint | wrong`, played UCI, hints used, time). Rows are never updated or deleted.
   Cards and `daily_stat` are derived state and can be rebuilt from the log.
@@ -30,9 +47,11 @@ on the web and in Tauri. We want one schema, one query layer and real SQL everyw
 ## Consequences
 
 - The same SQL runs in tests and in production; adapter bugs are limited to transport.
-- The web adapter needs `@sqlite.org/sqlite-wasm` (dependency approval pending, M1) and
-  bundled migrations (no filesystem in the browser).
+- SQLite on the web costs ~870 kB of wasm (400 kB gzipped), precached by the service worker.
+- Only one tab can use the persistent database at a time; other tabs fall back to memory
+  (with the banner). A cross-tab lock/hand-over is future work.
+- Vite also emits two sqlite-wasm helper workers we do not use (~245 kB); harmless, precached.
 - `node:sqlite` is still flagged experimental in Node 22 and prints a warning in tests;
   Node ≥ 22.13 is required.
-- Foreign keys from `attempt` to `node`/`session` are not cascading: deleting a collection that
-  has attempts fails on purpose. A policy for archiving collections is open (M1).
+- Foreign keys from `attempt` to `node`/`session` are not cascading: the history can never be
+  deleted by accident.
