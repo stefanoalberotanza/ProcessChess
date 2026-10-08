@@ -7,4 +7,5 @@ export * from './openings/graph';
 export type { OpeningIndex, ResolvedOpening } from './openings/types';
 export * from './pgn';
 export * from './position';
+export * from './srs';
 export * from './tree';

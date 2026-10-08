@@ -35,6 +35,9 @@
 
 <header>
   <a class="brand" href={resolve('/')}>ProcessChess</a>
+  <nav>
+    <a href={resolve('/stats')}>{t('nav.stats')}</a>
+  </nav>
   <label class="lang">
     <span class="sr-only">{t('lang.label')}</span>
     <select
@@ -98,6 +101,13 @@
     font-size: 1.2rem;
     color: inherit;
     text-decoration: none;
+  }
+  nav {
+    margin-left: auto;
+    margin-right: 1rem;
+  }
+  nav a {
+    color: var(--accent);
   }
   .banner {
     background: #fff3cd;

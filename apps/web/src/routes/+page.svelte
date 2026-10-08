@@ -6,8 +6,10 @@
     type Tree,
     type TreeEdit,
     addLine,
+    cardCounts,
     childrenOf,
     deleteSubtree,
+    endOfLocalDay,
     enumerateLines,
     exportPgn,
     lineStatus,
@@ -72,6 +74,9 @@
   const offRepertoireSan = $derived(
     tree && repAt && !inRepertoire ? (line.san[repAt.depth] ?? null) : null,
   );
+  const dueTotal = $derived(
+    rows.filter((r) => !r.collection.archivedAt).reduce((n, r) => n + r.due, 0),
+  );
   const totalLines = $derived(tree ? enumerateLines(tree).length : 0);
   const linesHere = $derived(
     tree && repAt && inRepertoire
@@ -94,7 +99,11 @@
     void loadOpeningGraph().then((g) => (graph = g));
     void refresh().then(() => {
       const c = initialParams.get('c');
-      if (c && rows.some((r) => r.collection.id === c)) void select(c);
+      if (c && rows.some((r) => r.collection.id === c)) {
+        void select(c).then(() => {
+          if (tab === 'train' && initialParams.get('mode') === 'review') void startReview();
+        });
+      }
     });
   });
 
@@ -116,11 +125,13 @@
   async function refresh() {
     const db = storage();
     const summaries = await db.collectionSummaries({ includeArchived: showArchived });
+    const now = new Date();
     rows = await Promise.all(
       summaries.map(async (s) => {
-        const [t0, passes] = await Promise.all([
+        const [t0, passes, cards] = await Promise.all([
           db.loadTree(s.collection.id),
           db.listLinePasses(s.collection.id),
+          db.listCards(s.collection.id),
         ]);
         const lines = enumerateLines(t0);
         return {
@@ -128,6 +139,7 @@
           lastTrainedAt: s.lastTrainedAt,
           lines: lines.length,
           clean: lines.filter((l) => lineStatus(passes, l.id).clean).length,
+          due: cardCounts(t0, cards, now, endOfLocalDay(now)).dueNow,
         };
       }),
     );
@@ -319,6 +331,10 @@
     if (!tree || !selectedId) return;
     await ctl.start(selectedId, tree, here && repAt ? { throughNodeId: repAt.nodeId } : {});
   }
+  async function startReview() {
+    if (!tree || !selectedId) return;
+    await ctl.startReview(selectedId, tree);
+  }
   async function stopTraining() {
     await ctl.stop();
     await refresh();
@@ -392,6 +408,11 @@
 
 <div class="workspace">
   <aside class="left">
+    {#if dueTotal > 0 || rows.length > 0}
+      <p class="due-summary" data-testid="due-summary">
+        {dueTotal ? t('home.dueSummary', { n: dueTotal }) : t('home.nothingDue')}
+      </p>
+    {/if}
     <RepertoireList
       {rows}
       {loaded}
@@ -532,7 +553,9 @@
           {totalLines}
           {linesHere}
           canStartHere={inRepertoire && ucis.length > 0}
+          dueNow={rows.find((r) => r.collection.id === selectedId)?.due ?? 0}
           onstart={(here) => startTraining(here)}
+          onreview={() => startReview()}
           onstop={() => void stopTraining()}
         />
       {/if}
@@ -646,6 +669,10 @@
   .tabs button[aria-selected='true'] {
     color: var(--fg);
     border-bottom-color: var(--accent);
+  }
+  .due-summary {
+    font-weight: 600;
+    margin: 0 0 0.6rem;
   }
   .muted,
   .msg {

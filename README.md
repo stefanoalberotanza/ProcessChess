@@ -4,8 +4,9 @@ Open-source, local-first trainer for chess sequences: play a line again and agai
 spaced repetition (FSRS) and a full history of every attempt. Openings first; famous games,
 mates, patterns and endgames later. Web (PWA), desktop and mobile (Tauri 2) from one frontend.
 
-Status: explore the ECO openings graph, build a repertoire from it (or import a PGN) and train
-it line by line in the browser, offline, with every attempt saved locally (SQLite in OPFS).
+Status: explore the ECO openings graph, build a repertoire from it (or import a PGN), train it
+line by line, then review only the moves that are due (FSRS, one card per move) and follow your
+daily statistics — in the browser, offline, with every attempt saved locally (SQLite in OPFS).
 
 ## Development
 

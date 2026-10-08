@@ -1,4 +1,12 @@
-import type { LinePassRecord, Tree, TreeChanges, TreeEdit } from '@processchess/core';
+import type {
+  CardMap,
+  DayStat,
+  LinePassRecord,
+  SrsCard,
+  Tree,
+  TreeChanges,
+  TreeEdit,
+} from '@processchess/core';
 import type {
   Attempt,
   AttemptResult,
@@ -76,7 +84,10 @@ export interface Storage {
   /** False when data lives in memory only (e.g. OPFS unavailable). */
   readonly persistent: boolean;
 
-  /** Applies pending migrations. Idempotent. Returns the tags applied now. */
+  /**
+   * Applies pending migrations, then rebuilds the derived state if attempts exist without a
+   * card (data from before M2). Idempotent. Returns the tags applied now.
+   */
   migrate(): Promise<string[]>;
 
   /** Creates an empty collection with its root node (the start position). */
@@ -109,8 +120,11 @@ export interface Storage {
   startSession(collectionId: string, rootNodeId: string): Promise<Session>;
   endSession(sessionId: string): Promise<void>;
 
-  /** Appends to the attempt log. Attempts are never updated or deleted. */
-  recordAttempt(input: NewAttemptInput): Promise<Attempt>;
+  /**
+   * Appends to the attempt log and, in the same transaction, updates the derived state: the
+   * FSRS card of the move and the daily stats. Attempts are never updated or deleted.
+   */
+  recordAttempt(input: NewAttemptInput): Promise<{ attempt: Attempt; card: SrsCard }>;
   listAttempts(nodeId: string): Promise<Attempt[]>;
   getMoveHistory(nodeId: string, limit?: number): Promise<MoveHistory>;
 
@@ -118,6 +132,16 @@ export interface Storage {
   recordLinePass(input: NewLinePassInput): Promise<void>;
   /** All passes of a collection, oldest first. */
   listLinePasses(collectionId: string): Promise<LinePassRecord[]>;
+
+  /** FSRS cards of the moves of a collection, keyed by node id. */
+  listCards(collectionId: string): Promise<CardMap>;
+  /**
+   * Daily totals between two local days (YYYY-MM-DD, inclusive), oldest first, only days with
+   * attempts. All collections unless `collectionId`.
+   */
+  dailyStats(range: { from: string; to: string; collectionId?: string }): Promise<DayStat[]>;
+  /** Recomputes cards and daily stats from the attempt log. */
+  rebuildDerived(): Promise<void>;
 
   /** Replaces the `opening` reference table. */
   seedOpenings(rows: Opening[]): Promise<void>;

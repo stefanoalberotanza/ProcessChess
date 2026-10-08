@@ -17,7 +17,7 @@ local SQLite database.
 | Monorepo      | pnpm workspaces, TypeScript strict, Vitest, ESLint + Prettier          |
 | Chess logic   | chess.js (BSD-2) — the only source of truth for rules, SAN/UCI, FEN    |
 | Storage       | SQLite + Drizzle (`sqlite-proxy`); web: sqlite-wasm + OPFS in a worker |
-| Spaced rep.   | ts-fsrs (from M2)                                                      |
+| Spaced rep.   | ts-fsrs (FSRS, one card per user move, derived from the attempt log)   |
 | UI            | SvelteKit (Svelte 5) with `adapter-static`, client-side only           |
 | Board         | chessground (GPL) wrapped **only** in `apps/web/src/lib/Board.svelte`  |
 | Native        | Tauri 2 (`apps/native`, later phase)                                   |
@@ -37,7 +37,8 @@ apps/web/                     SvelteKit app (@processchess/web)
   src/lib/i18n/               en.ts (keys), it.ts, t()
   src/lib/components/         RepertoireList, ExplorePanel, RepertoirePanel, DrillPanel,
                               OpeningBar, MoveTree, MoveHistory, ImportForm
-  src/routes/+page.svelte     the workspace (single route, ?c=<collection>&tab=…)
+  src/routes/+page.svelte     the workspace (?c=<collection>&tab=explore|repertoire|train)
+  src/routes/stats/           daily statistics
   src/service-worker.ts       offline precache
   e2e/                        Playwright tests; scripts/serve-build.js serves build/
 packages/core/                @processchess/core — pure logic, no UI, no I/O
@@ -45,7 +46,8 @@ packages/core/                @processchess/core — pure logic, no UI, no I/O
                               book lines, search); generated openings.json, opening-graph.json
   src/tree/                   move tree: addLine, setMainLine, setComment, deleteSubtree, layout
   src/pgn/                    parsePgn, importPgn/treeFromPgn, exportPgn
-  src/drill/                  line drill engine
+  src/drill/                  line drill and review drill engine
+  src/srs/                    FSRS cards (ts-fsrs), due moves and counts, daily stats helpers
   src/position.ts             legal moves, SAN↔UCI for the UI
   test/fixtures/              PGN fixtures
 packages/db/                  @processchess/db — Drizzle schema, migrations, Storage
@@ -89,7 +91,8 @@ push; CI runs the same. Locally Playwright uses the Chromium in `PLAYWRIGHT_BROW
   from a chess.js FEN (en passant square only when a capture is legal).
 - Moves are stored as UCI; SAN is derived with chess.js.
 - IDs are ULIDs; timestamps are Unix milliseconds.
-- `attempt` and `line_pass` are append-only: never update or delete rows.
+- `attempt` and `line_pass` are append-only: never update or delete rows. `card` and
+  `daily_stat` are derived from `attempt` (written in the same transaction, rebuildable).
 - Collections are archived, never deleted.
 - Every UI string goes through `t()`; add keys to `en.ts` and `it.ts` together.
 - Code, comments, docs and UI strings in English.

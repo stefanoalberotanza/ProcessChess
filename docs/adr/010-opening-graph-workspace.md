@@ -1,4 +1,4 @@
-# ADR 009 — Opening graph and single workspace
+# ADR 010 — Opening graph and single workspace
 
 - Status: accepted
 - Date: 2026-10-08
@@ -31,11 +31,14 @@ thing at a time.
   - centre: opening bar, board, navigation, SAN input, clickable move list, and "add this line
     to the repertoire" (with one-click White/Black default repertoires when none is selected);
   - right, tabs: **Openings** (search, book moves from the graph, "add the theory from here"),
-    **Repertoire** (move tree, comments, main line, delete, move history), **Training** (line
-    drill of the selected repertoire, all lines or only those through the board position).
+    **Repertoire** (move tree, comments, main line, delete, move history), **Training** (review
+    of the moves due now — FSRS, ADR 009 — and line drill of the selected repertoire, all lines
+    or only those through the board position).
 - The drill takes over the board while it runs (`DrillController` in `$lib/drill.svelte.ts`);
   leaving the tab ends the session.
-- Deep links: `/?c=<collection>&tab=<explore|repertoire|train>`. The old `/collection` and
+- Moves due for review are counted on each repertoire and in a summary above the list.
+- Deep links: `/?c=<collection>&tab=<explore|repertoire|train>[&mode=review]`; `/stats` links
+  back into the workspace. The old `/collection` and
   `/drill` pages are removed.
 - PGN import stays as a secondary action (dialog).
 

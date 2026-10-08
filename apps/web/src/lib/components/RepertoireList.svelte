@@ -6,6 +6,8 @@
     collection: Collection;
     lines: number;
     clean: number;
+    /** Moves due for review now. */
+    due: number;
     lastTrainedAt: Date | null;
   }
 
@@ -70,6 +72,9 @@
               {t(`color.${row.collection.userColor}`)} ·
               {t('rep.linesClean', { clean: row.clean, total: row.lines })}
             </span>
+            {#if row.due > 0}
+              <span class="due" data-testid="due-count">{t('rep.due', { n: row.due })}</span>
+            {/if}
             <span class="meta">
               {row.lastTrainedAt
                 ? t('rep.lastTrained', { date: formatDate(row.lastTrainedAt) })
@@ -157,6 +162,11 @@
   .meta,
   .muted {
     color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .due {
+    color: #2e7d32;
+    font-weight: 600;
     font-size: 0.85rem;
   }
   .small {

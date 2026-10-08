@@ -1,6 +1,10 @@
 import {
+  type CardMap,
+  type DayStat,
   INITIAL_FEN,
   type LinePassRecord,
+  type ReviewInput,
+  type SrsCard,
   type Tree,
   type TreeChanges,
   type TreeEdit,
@@ -8,16 +12,18 @@ import {
   createTree,
   emptyTree,
   fenAt,
+  dayKey,
   playMove,
+  reviewCard,
   toEpd,
 } from '@processchess/core';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, between, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { type SqliteRemoteDatabase, drizzle } from 'drizzle-orm/sqlite-proxy';
 import { ulid } from 'ulid';
 import type { SqlExecutor } from './executor';
 import { runMigrations } from './migrator';
 import * as schema from './schema';
-import type { Node, Opening } from './schema';
+import type { Card, CollectionKind, Node, Opening } from './schema';
 import type {
   CollectionSummary,
   MoveHistory,
@@ -37,6 +43,35 @@ export const newId = (): string => ulid();
 
 const CHUNK = 100;
 
+function toSrsCard(c: Card): SrsCard {
+  return {
+    due: c.due,
+    stability: c.stability,
+    difficulty: c.difficulty,
+    elapsedDays: c.elapsedDays,
+    scheduledDays: c.scheduledDays,
+    learningSteps: c.learningSteps,
+    reps: c.reps,
+    lapses: c.lapses,
+    state: c.state,
+    lastReview: c.lastReview,
+  };
+}
+
+/** What one attempt adds to the daily stats of its day. */
+function statDelta(a: ReviewInput, isNew: boolean): Omit<DayStat, 'day'> {
+  return {
+    attempts: 1,
+    correct: a.result === 'correct' ? 1 : 0,
+    hint: a.result === 'hint' ? 1 : 0,
+    wrong: a.result === 'wrong' ? 1 : 0,
+    newCards: isNew ? 1 : 0,
+    timeMs: a.timeMs,
+  };
+}
+
+const STAT_FIELDS = ['attempts', 'correct', 'hint', 'wrong', 'newCards', 'timeMs'] as const;
+
 function chunks<T>(rows: T[], size = CHUNK): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
@@ -49,7 +84,8 @@ export class SqliteStorage implements Storage {
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
-    private readonly exec: SqlExecutor,
+    /** Raw SQL access, for adapters and tests. */
+    readonly exec: SqlExecutor,
     readonly persistent: boolean,
     private readonly onClose: () => Promise<void> = async () => {},
   ) {
@@ -67,7 +103,15 @@ export class SqliteStorage implements Storage {
 
   async migrate() {
     await this.exec('PRAGMA foreign_keys = ON', [], 'run');
-    return runMigrations(this.exec);
+    const applied = await runMigrations(this.exec);
+    const [missing] = await this.db
+      .select({ id: schema.attempt.id })
+      .from(schema.attempt)
+      .leftJoin(schema.card, eq(schema.card.nodeId, schema.attempt.nodeId))
+      .where(isNull(schema.card.id))
+      .limit(1);
+    if (missing) await this.rebuildDerived();
+    return applied;
   }
 
   async createCollection(input: NewCollectionInput) {
@@ -266,20 +310,135 @@ export class SqliteStorage implements Storage {
   }
 
   async recordAttempt(input: NewAttemptInput) {
-    const [a] = await this.db
-      .insert(schema.attempt)
-      .values({
-        id: ulid(),
-        sessionId: input.sessionId,
-        nodeId: input.nodeId,
-        ts: input.ts ?? new Date(),
-        result: input.result,
-        playedUci: input.playedUci ?? null,
-        hints: input.hints ?? 0,
-        timeMs: input.timeMs,
+    return this.tx(async (tx) => {
+      const [attempt] = await tx
+        .insert(schema.attempt)
+        .values({
+          id: ulid(),
+          sessionId: input.sessionId,
+          nodeId: input.nodeId,
+          ts: input.ts ?? new Date(),
+          result: input.result,
+          playedUci: input.playedUci ?? null,
+          hints: input.hints ?? 0,
+          timeMs: input.timeMs,
+        })
+        .returning();
+      const [owner] = await tx
+        .select({ id: schema.collection.id, kind: schema.collection.kind })
+        .from(schema.node)
+        .innerJoin(schema.collection, eq(schema.collection.id, schema.node.collectionId))
+        .where(eq(schema.node.id, input.nodeId));
+      const [row] = await tx.select().from(schema.card).where(eq(schema.card.nodeId, input.nodeId));
+      const { card, isNew } = reviewCard(row ? toSrsCard(row) : null, attempt!);
+      await tx
+        .insert(schema.card)
+        .values({ id: ulid(), nodeId: input.nodeId, ...card })
+        .onConflictDoUpdate({ target: schema.card.nodeId, set: card });
+      const delta = statDelta(attempt!, isNew);
+      const day = dayKey(attempt!.ts);
+      for (const [scope, scopeKey] of [
+        ['collection', owner!.id],
+        ['kind', owner!.kind],
+      ] as const) {
+        await tx
+          .insert(schema.dailyStat)
+          .values({ day, scope, scopeKey, ...delta })
+          .onConflictDoUpdate({
+            target: [schema.dailyStat.day, schema.dailyStat.scope, schema.dailyStat.scopeKey],
+            set: Object.fromEntries(
+              STAT_FIELDS.map((f) => [f, sql`${schema.dailyStat[f]} + ${delta[f]}`]),
+            ),
+          });
+      }
+      return { attempt: attempt!, card };
+    });
+  }
+
+  async listCards(collectionId: string): Promise<CardMap> {
+    const rows = await this.db
+      .select({ card: schema.card })
+      .from(schema.card)
+      .innerJoin(schema.node, eq(schema.node.id, schema.card.nodeId))
+      .where(eq(schema.node.collectionId, collectionId));
+    return new Map(rows.map((r) => [r.card.nodeId, toSrsCard(r.card)]));
+  }
+
+  async dailyStats(range: { from: string; to: string; collectionId?: string }) {
+    const d = schema.dailyStat;
+    const scope = range.collectionId
+      ? and(eq(d.scope, 'collection'), eq(d.scopeKey, range.collectionId))
+      : eq(d.scope, 'kind');
+    const rows = await this.db
+      .select({
+        day: d.day,
+        attempts: sql<number>`sum(${d.attempts})`,
+        correct: sql<number>`sum(${d.correct})`,
+        hint: sql<number>`sum(${d.hint})`,
+        wrong: sql<number>`sum(${d.wrong})`,
+        newCards: sql<number>`sum(${d.newCards})`,
+        timeMs: sql<number>`sum(${d.timeMs})`,
       })
-      .returning();
-    return a!;
+      .from(d)
+      .where(and(scope, between(d.day, range.from, range.to)))
+      .groupBy(d.day)
+      .orderBy(asc(d.day));
+    return rows.map((r): DayStat => ({
+      day: r.day,
+      ...(Object.fromEntries(STAT_FIELDS.map((f) => [f, Number(r[f])])) as Omit<DayStat, 'day'>),
+    }));
+  }
+
+  async rebuildDerived() {
+    await this.tx(async (tx) => {
+      const log = await tx
+        .select({
+          attempt: schema.attempt,
+          collectionId: schema.collection.id,
+          kind: schema.collection.kind,
+        })
+        .from(schema.attempt)
+        .innerJoin(schema.node, eq(schema.node.id, schema.attempt.nodeId))
+        .innerJoin(schema.collection, eq(schema.collection.id, schema.node.collectionId))
+        .orderBy(sql`${schema.attempt}.rowid`); // log order = insertion order
+      const cards = new Map<string, SrsCard>();
+      const stats = new Map<string, DayStat & { scope: 'collection' | 'kind'; scopeKey: string }>();
+      for (const { attempt, collectionId, kind } of log) {
+        const { card, isNew } = reviewCard(cards.get(attempt.nodeId) ?? null, attempt);
+        cards.set(attempt.nodeId, card);
+        const delta = statDelta(attempt, isNew);
+        const day = dayKey(attempt.ts);
+        for (const [scope, scopeKey] of [
+          ['collection', collectionId],
+          ['kind', kind as CollectionKind],
+        ] as const) {
+          const key = `${day} ${scope} ${scopeKey}`;
+          const s = stats.get(key) ?? {
+            day,
+            scope,
+            scopeKey,
+            attempts: 0,
+            correct: 0,
+            hint: 0,
+            wrong: 0,
+            newCards: 0,
+            timeMs: 0,
+          };
+          for (const f of STAT_FIELDS) s[f] += delta[f];
+          stats.set(key, s);
+        }
+      }
+      await tx.delete(schema.card);
+      await tx.delete(schema.dailyStat);
+      for (const part of chunks([...cards])) {
+        await tx
+          .insert(schema.card)
+          .values(part.map(([nodeId, card]) => ({ id: ulid(), nodeId, ...card })));
+      }
+      for (const part of chunks([...stats.values()])) {
+        await tx.insert(schema.dailyStat).values(part);
+      }
+    });
   }
 
   async listAttempts(nodeId: string) {
