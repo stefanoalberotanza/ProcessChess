@@ -114,7 +114,7 @@ describe('SqliteStorage (in-memory)', () => {
     expect(mate.san).toBe('Re8#');
 
     const s = await storage.startSession(collection.id, root.id);
-    const a = await storage.recordAttempt({
+    const { attempt: a } = await storage.recordAttempt({
       sessionId: s.id,
       nodeId: mate.id,
       result: 'correct',
