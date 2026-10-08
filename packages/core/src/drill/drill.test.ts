@@ -231,6 +231,17 @@ describe('line cleanliness and ordering', () => {
     expect(startLineDrill({ tree }, { lineId: sicilian!.id }).line.id).toBe(sicilian!.id);
   });
 
+  it('can be limited to the lines through a node', () => {
+    const tree = white();
+    const [mainLine, sicilian] = enumerateLines(tree);
+    const c5 = sicilian!.nodeIds[1]!; // 1...c5
+    const s = startLineDrill({ tree }, { throughNodeId: c5 });
+    expect(s.queue).toEqual([sicilian!.id]);
+    expect(drillProgress(s).total).toBe(1);
+    const all = startLineDrill({ tree }, { throughNodeId: tree.rootId });
+    expect(all.queue).toEqual([mainLine!.id, sicilian!.id]);
+  });
+
   it('nextLine walks the queue and ends with done', () => {
     let s = startLineDrill({ tree: white() }, {});
     s = nextLine(s);
