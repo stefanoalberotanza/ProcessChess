@@ -8,7 +8,6 @@ import {
   real,
   sqliteTable,
   text,
-  uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
 // All primary keys are ULIDs (see docs/adr/002-storage.md). Timestamps are Unix ms.
@@ -46,6 +45,8 @@ export const collection = sqliteTable(
     source: text('source'),
     license: text('license'),
     createdAt: createdAt(),
+    /** Set when archived. Collections are never deleted; archived ones are hidden by default. */
+    archivedAt: integer('archived_at', { mode: 'timestamp_ms' }),
   },
   (t) => [
     check('collection_kind_check', sql`${t.kind} in ('opening','game','mate','pattern','endgame')`),
@@ -174,10 +175,31 @@ export const opening = sqliteTable(
     name: text('name').notNull(),
     family: text('family').notNull(),
     variation: text('variation'),
-    uci: text('uci').notNull(),
-    ply: integer('ply').notNull(),
   },
-  (t) => [index('opening_eco_idx').on(t.eco), uniqueIndex('opening_uci_idx').on(t.uci)],
+  (t) => [index('opening_eco_idx').on(t.eco)],
+);
+
+/**
+ * Append-only log of completed passes through a line (line = leaf node id, see
+ * docs/adr/006-line-drill.md). The clean streak of a line is derived from it.
+ */
+export const linePass = sqliteTable(
+  'line_pass',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => session.id),
+    collectionId: text('collection_id')
+      .notNull()
+      .references(() => collection.id),
+    /** Leaf node id of the planned line; not a foreign key, lines are derived. */
+    lineId: text('line_id').notNull(),
+    clean: integer('clean', { mode: 'boolean' }).notNull(),
+    diverged: integer('diverged', { mode: 'boolean' }).notNull(),
+    ts: integer('ts', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('line_pass_collection_ts_idx').on(t.collectionId, t.ts)],
 );
 
 export type Collection = typeof collection.$inferSelect;
@@ -190,3 +212,4 @@ export type Attempt = typeof attempt.$inferSelect;
 export type NewAttempt = typeof attempt.$inferInsert;
 export type DailyStat = typeof dailyStat.$inferSelect;
 export type Opening = typeof opening.$inferSelect;
+export type LinePass = typeof linePass.$inferSelect;
