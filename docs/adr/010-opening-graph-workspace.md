@@ -34,6 +34,13 @@ thing at a time.
     **Repertoire** (move tree, comments, main line, delete, move history), **Training** (review
     of the moves due now — FSRS, ADR 009 — and line drill of the selected repertoire, all lines
     or only those through the board position).
+- **Graph tab**: the neighbourhood of the board position in the opening graph, left to right —
+  the last 2 moves played, the current position, its 8 most played book moves and 3
+  continuations of each. Every node is a small board (SVG, `MiniBoard.svelte`, no chessground)
+  showing the position after its move, with SAN and ECO. Edge width follows the dataset lines
+  through the move; nodes and edges in the selected repertoire are green. Clicking a node moves
+  the shared board, and the graph follows moves played on the board. Layout (`graphView`, a tidy
+  tree) and piece placement (`piecesOf`) are in core with tests.
 - The drill takes over the board while it runs (`DrillController` in `$lib/drill.svelte.ts`);
   leaving the tab ends the session.
 - Moves due for review are counted on each repertoire and in a summary above the list.

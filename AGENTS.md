@@ -35,15 +35,17 @@ apps/web/                     SvelteKit app (@processchess/web)
   src/lib/app.svelte.ts       bootstrap: OPFS storage, migrations, openings dataset
   src/lib/drill.svelte.ts     DrillController: drill UI state + attempt logging
   src/lib/i18n/               en.ts (keys), it.ts, t()
-  src/lib/components/         RepertoireList, ExplorePanel, RepertoirePanel, DrillPanel,
-                              OpeningBar, MoveTree, MoveHistory, ImportForm
-  src/routes/+page.svelte     the workspace (?c=<collection>&tab=explore|repertoire|train)
+  src/lib/components/         RepertoireList, ExplorePanel, GraphPanel, MiniBoard,
+                              RepertoirePanel, DrillPanel, OpeningBar, MoveTree, MoveHistory,
+                              ImportForm
+  src/routes/+page.svelte     the workspace (?c=<collection>&tab=explore|graph|repertoire|train)
   src/routes/stats/           daily statistics
   src/service-worker.ts       offline precache
   e2e/                        Playwright tests; scripts/serve-build.js serves build/
 packages/core/                @processchess/core — pure logic, no UI, no I/O
   src/openings/               resolveOpening(), loadOpenings(), opening graph (book moves,
-                              book lines, search); generated openings.json, opening-graph.json
+                              book lines, search, graphView layout); generated openings.json,
+                              opening-graph.json
   src/tree/                   move tree: addLine, setMainLine, setComment, deleteSubtree, layout
   src/pgn/                    parsePgn, importPgn/treeFromPgn, exportPgn
   src/drill/                  line drill and review drill engine
