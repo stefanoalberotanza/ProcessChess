@@ -58,6 +58,14 @@ export interface DrillCollection {
 
 export type DrillPhase = 'user' | 'retry' | 'line-complete' | 'done';
 
+/** A move played by the engine: an opponent reply, or a user move not asked in a review. */
+export interface AutoMove {
+  nodeId: string;
+  uci: string;
+  san: string;
+  isUserMove: boolean;
+}
+
 export interface DrillState {
   readonly tree: Tree;
   readonly cleanThreshold: number;
@@ -65,6 +73,11 @@ export interface DrillState {
   readonly lines: ReadonlyMap<string, Line>;
   /** Line ids in drill order. */
   readonly queue: readonly string[];
+  /**
+   * Review drill: the user moves asked in each queued line; the others are played
+   * automatically. Null in the line drill, where every user move is asked.
+   */
+  readonly asks: ReadonlyMap<string, ReadonlySet<string>> | null;
   readonly queueIndex: number;
   readonly line: Line;
   readonly phase: DrillPhase;
@@ -82,6 +95,8 @@ export interface DrillState {
   readonly shownAt: number;
   readonly passHadError: boolean;
   readonly lastOpponentMove: { nodeId: string; uci: string; san: string } | null;
+  /** Moves played automatically since the last user move (or the start of the line). */
+  readonly lastAutoMoves: readonly AutoMove[];
   /** Past passes plus the ones completed in this session, oldest first. */
   readonly passes: readonly LinePassRecord[];
 }
@@ -90,8 +105,11 @@ export interface SubmitResult {
   state: DrillState;
   outcome: MoveOutcome;
   attempt?: AttemptRecord;
+  /** Line drill only: the pass completed by this move. */
   pass?: LinePassRecord;
   opponentMove?: { nodeId: string; uci: string; san: string };
+  /** Moves played automatically after this one, when there are any. */
+  autoMoves?: AutoMove[];
 }
 
 /**
@@ -175,6 +193,7 @@ export function startLineDrill(
     clock: options.clock ?? Date.now,
     lines,
     queue,
+    asks: null,
     passes,
   };
   if (queue.length === 0) {
@@ -193,6 +212,7 @@ export function startLineDrill(
       shownAt: base.clock(),
       passHadError: false,
       lastOpponentMove: null,
+      lastAutoMoves: [],
     };
   }
   return beginLine({ ...base, queueIndex: 0 } as unknown as DrillState, 0);
@@ -219,6 +239,7 @@ function beginLine(state: DrillState, queueIndex: number): DrillState {
     shownAt: state.clock(),
     passHadError: false,
     lastOpponentMove: null,
+    lastAutoMoves: [],
   };
   return advance(s).state;
 }
@@ -233,57 +254,71 @@ function plannedChild(s: DrillState, kids: TreeNode[]): TreeNode {
   return kids[0]!;
 }
 
-/**
- * Plays opponent moves automatically, then either waits for the user or completes the line.
- */
 type OpponentMove = NonNullable<DrillState['lastOpponentMove']>;
 
+/** The user moves asked in the current line; null when every user move is asked. */
+function askedIn(s: DrillState): ReadonlySet<string> | null {
+  return s.asks ? (s.asks.get(s.line.id) ?? new Set()) : null;
+}
+
+/**
+ * Plays opponent moves (and, in a review, the user moves not asked) automatically, then either
+ * waits for the user or completes the line.
+ */
 function advance(s: DrillState): {
   state: DrillState;
   pass?: LinePassRecord;
   opponentMove?: OpponentMove;
+  autoMoves?: AutoMove[];
 } {
   let state = s;
   let opponentMove: OpponentMove | null = null;
+  const autoMoves: AutoMove[] = [];
+  const ask = askedIn(s);
+  const extra = () => ({
+    ...(opponentMove ? { opponentMove } : {}),
+    ...(autoMoves.length ? { autoMoves } : {}),
+  });
   for (;;) {
     const kids = childrenOf(state.tree, state.currentId);
     if (kids.length === 0) {
+      const complete: DrillState = {
+        ...state,
+        phase: 'line-complete',
+        expectedId: null,
+        reveal: null,
+        lastOpponentMove: opponentMove ?? state.lastOpponentMove,
+        lastAutoMoves: autoMoves,
+      };
+      if (ask) return { state: complete, ...extra() };
       const pass: LinePassRecord = {
         lineId: state.line.id,
         clean: !state.passHadError,
         diverged: state.diverged,
       };
-      return {
-        state: {
-          ...state,
-          phase: 'line-complete',
-          expectedId: null,
-          reveal: null,
-          lastOpponentMove: opponentMove ?? state.lastOpponentMove,
-          passes: [...state.passes, pass],
-        },
-        pass,
-        ...(opponentMove ? { opponentMove } : {}),
-      };
+      return { state: { ...complete, passes: [...state.passes, pass] }, pass, ...extra() };
     }
-    if (kids[0]!.isUserMove) {
+    const next = plannedChild(state, kids);
+    if (next.isUserMove && (!ask || ask.has(next.id))) {
       return {
         state: {
           ...state,
           phase: 'user',
-          expectedId: plannedChild(state, kids).id,
+          expectedId: next.id,
           reveal: null,
           hintLevel: 0,
           firstWrongUci: null,
           shownAt: state.clock(),
           lastOpponentMove: opponentMove ?? state.lastOpponentMove,
+          lastAutoMoves: autoMoves,
         },
-        ...(opponentMove ? { opponentMove } : {}),
+        ...extra(),
       };
     }
-    const reply = plannedChild(state, kids);
-    opponentMove = { nodeId: reply.id, uci: reply.uci!, san: reply.san! };
-    state = { ...state, currentId: reply.id, pathIds: [...state.pathIds, reply.id] };
+    const auto = { nodeId: next.id, uci: next.uci!, san: next.san! };
+    autoMoves.push({ ...auto, isUserMove: next.isUserMove });
+    if (!next.isUserMove) opponentMove = auto;
+    state = { ...state, currentId: next.id, pathIds: [...state.pathIds, next.id] };
   }
 }
 
@@ -355,4 +390,55 @@ export function repeatLine(state: DrillState): DrillState {
 /** Moves on to the next line in the queue, or to `done`. */
 export function nextLine(state: DrillState): DrillState {
   return beginLine(state, state.queueIndex + 1);
+}
+
+/**
+ * Review drill over due moves (ADR 009): lines in tree order, each queued line asks the due
+ * moves not asked by an earlier line; every other move is played automatically. Due ids that
+ * are not on a line are ignored. Completed lines record no pass.
+ */
+export function startReviewDrill(
+  collection: { tree: Tree },
+  dueIds: Iterable<string>,
+  options: Pick<LineDrillOptions, 'clock'> = {},
+): DrillState {
+  const remaining = new Set(dueIds);
+  const asks = new Map<string, ReadonlySet<string>>();
+  for (const line of enumerateLines(collection.tree)) {
+    const ask = new Set(line.nodeIds.filter((id) => remaining.has(id)));
+    if (ask.size === 0) continue;
+    for (const id of ask) remaining.delete(id);
+    asks.set(line.id, ask);
+  }
+  const state = startLineDrill({ tree: collection.tree }, options);
+  const queue = [...asks.keys()];
+  if (queue.length === 0) {
+    return {
+      ...state,
+      queue,
+      asks,
+      queueIndex: 0,
+      line: { id: collection.tree.rootId, nodeIds: [] },
+      phase: 'done',
+      currentId: collection.tree.rootId,
+      pathIds: [],
+      expectedId: null,
+      lastOpponentMove: null,
+      lastAutoMoves: [],
+    };
+  }
+  return beginLine({ ...state, queue, asks }, 0);
+}
+
+/** Review drill: due moves answered so far out of all the due moves of the review. */
+export function reviewProgress(state: DrillState): { done: number; total: number } {
+  if (!state.asks) return { done: 0, total: 0 };
+  const sizes = state.queue.map((id) => state.asks!.get(id)!.size);
+  const total = sizes.reduce((a, b) => a + b, 0);
+  if (state.phase === 'done') return { done: total, total };
+  let done = sizes.slice(0, state.queueIndex).reduce((a, b) => a + b, 0);
+  const ask = askedIn(state)!;
+  if (state.phase === 'line-complete') done += ask.size;
+  else done += state.pathIds.filter((id) => ask.has(id)).length;
+  return { done, total };
 }

@@ -84,7 +84,9 @@ describe('startReviewDrill', () => {
 
   it('ignores due ids that are not scheduled moves and is done without due moves', () => {
     const tree = white();
-    expect(startReviewDrill({ tree }, []).phase).toBe('done');
+    const none = startReviewDrill({ tree }, []);
+    expect(none.phase).toBe('done');
+    expect(none.currentId).toBe(tree.rootId);
     expect(startReviewDrill({ tree }, [at(tree, 'e4', 'e5', 'Nc3')]).phase).toBe('done');
   });
 
