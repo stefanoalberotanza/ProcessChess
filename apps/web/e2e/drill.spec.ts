@@ -225,3 +225,30 @@ test('falls back to memory with a visible banner when OPFS is unavailable', asyn
   await expect(second.getByTestId('not-persistent')).toContainText('data will not be saved');
   await expect(second.getByRole('button', { name: /import pgn/i })).toBeVisible();
 });
+
+test('graph view: a board per node, connected to the main board and the repertoire', async ({
+  page,
+}) => {
+  await ready(page);
+  await page.getByRole('tab', { name: 'Graph' }).click();
+  const nodes = page.getByRole('list', { name: 'Opening graph' });
+  await expect(nodes.locator('[aria-current="true"]')).toHaveAccessibleName(/^Start/);
+  // every node draws its own board
+  await expect(nodes.locator('svg').first()).toBeVisible();
+
+  // clicking a node moves the shared board
+  await nodes.getByRole('button', { name: /^e4 — B00 King's Pawn Game/ }).click();
+  await expect(page.getByTestId('opening-bar')).toContainText('B00');
+  await expect(nodes.locator('[aria-current="true"]')).toHaveAccessibleName(/^e4/);
+  // the previous position stays visible as part of the path
+  await expect(nodes.getByRole('button', { name: /^Start/ })).toBeVisible();
+
+  // moves played on the board move the graph
+  await playSan(page, 'e5');
+  await expect(nodes.locator('[aria-current="true"]')).toHaveAccessibleName(/^e5/);
+
+  // saved lines are marked in the graph
+  await page.getByRole('button', { name: 'White repertoire', exact: true }).click();
+  await expectSelected(page, 'White repertoire');
+  await expect(nodes.locator('[aria-current="true"]')).toHaveAccessibleName(/In your repertoire/);
+});
