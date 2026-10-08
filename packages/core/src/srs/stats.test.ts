@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { type DayStat, addDays, dayKey, endOfLocalDay, fillDays, streak } from './index';
 
 function day(d: string, attempts: number, extra: Partial<DayStat> = {}): DayStat {
-  return { day: d, attempts, correct: attempts, hint: 0, wrong: 0, newCards: 0, timeMs: 0, ...extra };
+  return {
+    day: d,
+    attempts,
+    correct: attempts,
+    hint: 0,
+    wrong: 0,
+    newCards: 0,
+    timeMs: 0,
+    ...extra,
+  };
 }
 
 describe('dayKey', () => {
