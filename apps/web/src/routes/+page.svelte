@@ -1,6 +1,6 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
-  import { enumerateLines } from '@processchess/core';
+  import { type CardCounts, cardCounts, endOfLocalDay, enumerateLines } from '@processchess/core';
   import type { CollectionSummary } from '@processchess/db';
   import { app, storage } from '$lib/app.svelte';
   import ImportForm from '$lib/components/ImportForm.svelte';
@@ -8,6 +8,7 @@
 
   interface Row extends CollectionSummary {
     lines: number;
+    counts: CardCounts;
   }
 
   let rows = $state<Row[]>([]);
@@ -16,15 +17,24 @@
   let dialog: HTMLDialogElement;
   let importOpen = $state(false);
   let notice = $state<string | null>(null);
+  const dueTotal = $derived(
+    rows.filter((r) => !r.collection.archivedAt).reduce((n, r) => n + r.counts.dueNow, 0),
+  );
 
   async function refresh() {
     const db = storage();
     const summaries = await db.collectionSummaries({ includeArchived: showArchived });
+    const now = new Date();
     rows = await Promise.all(
-      summaries.map(async (s) => ({
-        ...s,
-        lines: enumerateLines(await db.loadTree(s.collection.id)).length,
-      })),
+      summaries.map(async (s) => {
+        const tree = await db.loadTree(s.collection.id);
+        const cards = await db.listCards(s.collection.id);
+        return {
+          ...s,
+          lines: enumerateLines(tree).length,
+          counts: cardCounts(tree, cards, now, endOfLocalDay(now)),
+        };
+      }),
     );
     loaded = true;
   }
@@ -74,6 +84,11 @@
       <p>{t('home.emptyHint')}</p>
     </div>
   {:else}
+    {#if rows.length}
+      <p class="due-summary" data-testid="due-summary">
+        {dueTotal ? t('home.dueSummary', { n: dueTotal }) : t('home.nothingDue')}
+      </p>
+    {/if}
     <label class="archived-toggle">
       <input type="checkbox" bind:checked={showArchived} />
       {t('home.showArchived')}
@@ -87,6 +102,7 @@
             <th>{t('home.name')}</th>
             <th>{t('home.color')}</th>
             <th>{t('home.lines')}</th>
+            <th>{t('home.due')}</th>
             <th>{t('home.lastTrained')}</th>
             <th><span class="sr-only">{t('home.actions')}</span></th>
           </tr>
@@ -101,8 +117,16 @@
               </td>
               <td>{t(`color.${row.collection.userColor}`)}</td>
               <td>{row.lines}</td>
+              <td data-testid="due-count">{row.counts.dueNow}</td>
               <td>{row.lastTrainedAt ? formatDate(row.lastTrainedAt) : t('home.never')}</td>
               <td class="actions">
+                {#if !row.collection.archivedAt && row.counts.dueNow > 0}
+                  <a
+                    class="button review"
+                    href={`${resolve('/drill')}?id=${row.collection.id}&mode=review`}
+                    >{t('home.review', { n: row.counts.dueNow })}</a
+                  >
+                {/if}
                 {#if !row.collection.archivedAt}
                   <a class="button" href={`${resolve('/drill')}?id=${row.collection.id}`}
                     >{t('home.train')}</a
@@ -194,6 +218,12 @@
     background: var(--accent);
     color: white;
     text-decoration: none;
+  }
+  .button.review {
+    background: #2e7d32;
+  }
+  .due-summary {
+    font-weight: 600;
   }
   .archived-toggle {
     display: inline-flex;

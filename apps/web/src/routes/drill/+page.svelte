@@ -1,19 +1,26 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import {
+    type AutoMove,
+    type CardCounts,
     type DrillState,
     type Hint,
     INITIAL_FEN,
     type SubmitResult,
+    cardCounts,
     drillProgress,
+    dueNodeIds,
+    endOfLocalDay,
     fenAt,
     nextLine,
     parseUci,
     pathTo,
     repeatLine,
     requestHint,
+    reviewProgress,
     sanToUci,
     startLineDrill,
+    startReviewDrill,
     submitMove,
     toEpd,
     uciToSan,
@@ -24,9 +31,13 @@
   import { app, initApp, queryParam, storage } from '$lib/app.svelte';
   import MoveHistory from '$lib/components/MoveHistory.svelte';
   import OpeningBar from '$lib/components/OpeningBar.svelte';
-  import { t } from '$lib/i18n/index.svelte';
+  import { formatDate, t } from '$lib/i18n/index.svelte';
 
   let collection = $state<Collection | null>(null);
+  /** Review of the due moves (`mode=review`) instead of the line drill. */
+  let review = $state(false);
+  /** Review: counts after the last line, to offer another round or show the next due date. */
+  let afterReview = $state.raw<CardCounts | null>(null);
   let drill = $state.raw<DrillState | null>(null);
   let sessionId: string | null = null;
   let notFound = $state(false);
@@ -51,13 +62,38 @@
       notFound = true;
       return;
     }
+    review = queryParam('mode') === 'review';
     const tree = await db.loadTree(collection.id);
-    const passes = await db.listLinePasses(collection.id);
     // the session row must exist before the first attempt can be logged
     sessionId = (await db.startSession(collection.id, tree.rootId)).id;
-    drill = startLineDrill({ tree, passes });
-    announceStart();
+    if (review) {
+      await startReview(tree);
+    } else {
+      drill = startLineDrill({ tree, passes: await db.listLinePasses(collection.id) });
+      announceStart();
+    }
   });
+
+  /** Starts a review over the moves due now (cards are read after pending writes). */
+  async function startReview(tree: DrillState['tree']) {
+    await writes;
+    const cards = await storage().listCards(collection!.id);
+    const now = new Date();
+    drill = startReviewDrill({ tree }, dueNodeIds(tree, cards, now));
+    reset();
+    if (drill.phase === 'done') await loadAfterReview();
+  }
+
+  async function loadAfterReview() {
+    await writes;
+    const now = new Date();
+    afterReview = cardCounts(
+      drill!.tree,
+      await storage().listCards(collection!.id),
+      now,
+      endOfLocalDay(now),
+    );
+  }
 
   onDestroy(() => {
     if (sessionId) void storage().endSession(sessionId);
@@ -75,6 +111,7 @@
   const tree = $derived(drill?.tree ?? null);
   const fen = $derived(drill ? fenAt(drill.tree, drill.currentId) : INITIAL_FEN);
   const progress = $derived(drill ? drillProgress(drill) : { clean: 0, total: 0 });
+  const reviewed = $derived(drill ? reviewProgress(drill) : { done: 0, total: 0 });
   const standardStart = $derived(
     tree ? tree.nodes.get(tree.rootId)!.epd === toEpd(INITIAL_FEN) : true,
   );
@@ -108,8 +145,20 @@
 
   function announceStart() {
     if (!drill) return;
+    if (drill.phase === 'done') {
+      announcement = review ? t('review.nothingDue') : t('drill.allDone');
+      return;
+    }
+    if (review && drill.lastAutoMoves.length) {
+      announcement = `${autoText(drill.lastAutoMoves)} ${t('drill.yourMove')}`;
+      return;
+    }
     const opp = drill.lastOpponentMove;
     announcement = opp ? t('drill.announceOpponent', { san: opp.san }) : t('drill.yourMove');
+  }
+
+  function autoText(moves: readonly AutoMove[]): string {
+    return t('review.auto', { moves: moves.map((m) => m.san).join(' ') });
   }
 
   function handle(r: SubmitResult, playedSan: string) {
@@ -125,8 +174,12 @@
           ? t('drill.announceAlternative', { san: playedSan })
           : t('drill.announceCorrect', { san: playedSan }),
       ];
-      if (r.opponentMove) parts.push(t('drill.announceOpponent', { san: r.opponentMove.san }));
+      if (review && r.autoMoves) parts.push(autoText(r.autoMoves));
+      else if (r.opponentMove) {
+        parts.push(t('drill.announceOpponent', { san: r.opponentMove.san }));
+      }
       if (r.pass) parts.push(r.pass.clean ? t('drill.lineClean') : t('drill.lineWithErrors'));
+      else if (review && r.state.phase === 'line-complete') parts.push(t('review.lineDone'));
       announcement = parts.join(' ');
     }
     const sid = sessionId!;
@@ -138,8 +191,8 @@
     if (r.pass) {
       const pass = r.pass;
       save(() => storage().recordLinePass({ sessionId: sid, collectionId: cid, ...pass }));
-      save(loadLineHistories);
     }
+    if (r.state.phase === 'line-complete') save(loadLineHistories);
     drill = r.state;
   }
 
@@ -203,15 +256,24 @@
     if (!drill || drill.phase !== 'line-complete') return;
     drill = nextLine(drill);
     reset();
+    if (review && drill.phase === 'done') {
+      announcement = t('review.allDone');
+      void loadAfterReview();
+    }
   }
 
   function restart() {
     if (!drill) return;
+    if (review) {
+      void startReview(drill.tree);
+      return;
+    }
     drill = startLineDrill({ tree: drill.tree, passes: drill.passes });
     reset();
   }
 
   function reset() {
+    afterReview = null;
     hint = null;
     wrongSan = null;
     lineHistories = [];
@@ -237,9 +299,16 @@
   <div class="drill" data-saving={saving > 0 ? 'true' : 'false'}>
     <div class="head">
       <h1><a href={`${resolve('/collection')}?id=${collection.id}`}>{collection.name}</a></h1>
-      <span data-testid="clean-counter" class="counter"
-        >{t('drill.cleanCounter', { clean: progress.clean, total: progress.total })}</span
-      >
+      {#if review}
+        <span class="mode">{t('review.title')}</span>
+        <span data-testid="review-counter" class="counter"
+          >{t('review.counter', { done: reviewed.done, total: reviewed.total })}</span
+        >
+      {:else}
+        <span data-testid="clean-counter" class="counter"
+          >{t('drill.cleanCounter', { clean: progress.clean, total: progress.total })}</span
+        >
+      {/if}
       {#if drill.phase !== 'done'}
         <span class="muted">{t('drill.lineOf', { n: lineNumber, total: drill.queue.length })}</span>
       {/if}
@@ -299,7 +368,11 @@
         {#if drill.phase === 'line-complete'}
           <section class="complete" aria-label={t('drill.lineComplete')}>
             <h2>
-              {drill.passes.at(-1)?.clean ? t('drill.lineClean') : t('drill.lineWithErrors')}
+              {review
+                ? t('review.lineDone')
+                : drill.passes.at(-1)?.clean
+                  ? t('drill.lineClean')
+                  : t('drill.lineWithErrors')}
             </h2>
             {#each lineHistories as h (h.id)}
               <div class="node-history">
@@ -307,6 +380,21 @@
                 <MoveHistory history={h.history} fenBefore={h.fenBefore} />
               </div>
             {/each}
+          </section>
+        {:else if drill.phase === 'done' && review}
+          <section class="complete" data-testid="review-done">
+            <h2>{reviewed.total ? t('review.allDone') : t('review.nothingDue')}</h2>
+            {#if afterReview}
+              {#if afterReview.dueNow > 0}
+                <p>{t('review.dueAgain', { n: afterReview.dueNow })}</p>
+                <button type="button" onclick={restart}>{t('review.again')}</button>
+              {:else if afterReview.nextDue}
+                <p data-testid="next-due">
+                  {t('review.nextDue', { date: formatDate(afterReview.nextDue) })}
+                </p>
+              {/if}
+            {/if}
+            <p><a href={resolve('/')}>{t('common.back')}</a></p>
           </section>
         {:else if drill.phase === 'done'}
           <section class="complete">
@@ -337,6 +425,11 @@
   }
   .counter {
     font-weight: 600;
+  }
+  .mode {
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    background: var(--hover);
   }
   .layout {
     display: flex;
