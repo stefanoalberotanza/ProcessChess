@@ -71,3 +71,19 @@ export function playLine(
   }
   return { san, fen: current };
 }
+
+export interface PlacedPiece {
+  square: string;
+  color: 'w' | 'b';
+  /** chess.js piece type: p n b r q k */
+  type: string;
+}
+
+/** Pieces on the board, from a8 to h1. */
+export function piecesOf(fen: string): PlacedPiece[] {
+  return new Chess(fen)
+    .board()
+    .flat()
+    .filter((p) => p !== null)
+    .map((p) => ({ square: p.square, color: p.color, type: p.type }));
+}

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { INITIAL_FEN, describePosition, playLine, playMove, sanToUci, uciToSan } from './position';
+import {
+  INITIAL_FEN,
+  describePosition,
+  piecesOf,
+  playLine,
+  playMove,
+  sanToUci,
+  uciToSan,
+} from './position';
 
 const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
 
@@ -43,5 +51,18 @@ describe('playLine', () => {
 
   it('returns null at the first illegal move', () => {
     expect(playLine(INITIAL_FEN, ['e2e4', 'e2e4'])).toBeNull();
+  });
+});
+
+describe('piecesOf', () => {
+  it('lists the pieces of a position with square, colour and type', () => {
+    const pieces = piecesOf(INITIAL_FEN);
+    expect(pieces).toHaveLength(32);
+    expect(pieces).toContainEqual({ square: 'e1', color: 'w', type: 'k' });
+    expect(pieces).toContainEqual({ square: 'd8', color: 'b', type: 'q' });
+    expect(piecesOf('7k/8/8/8/8/8/8/K7 w - - 0 1')).toEqual([
+      { square: 'h8', color: 'b', type: 'k' },
+      { square: 'a1', color: 'w', type: 'k' },
+    ]);
   });
 });
