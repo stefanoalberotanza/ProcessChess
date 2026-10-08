@@ -7,6 +7,10 @@ export * from './schema';
 export { INITIAL_FEN, SqliteStorage, newId, type Db } from './sqlite-storage';
 export type {
   CollectionSummary,
+  LabEdgeStats,
+  LabRunSummary,
+  NewLabAttemptInput,
+  NewLabRunInput,
   MoveHistory,
   NewAttemptInput,
   NewCollectionInput,

@@ -26,6 +26,10 @@ import * as schema from './schema';
 import type { Card, CollectionKind, Node, Opening } from './schema';
 import type {
   CollectionSummary,
+  LabEdgeStats,
+  LabRunSummary,
+  NewLabAttemptInput,
+  NewLabRunInput,
   MoveHistory,
   NewAttemptInput,
   NewCollectionInput,
@@ -519,6 +523,87 @@ export class SqliteStorage implements Storage {
 
   async getOpeningByEpd(epd: string) {
     return this.db.query.opening.findFirst({ where: eq(schema.opening.epd, epd) });
+  }
+
+  async recordLabAttempt(input: NewLabAttemptInput) {
+    await this.db.insert(schema.labAttempt).values({
+      id: ulid(),
+      runId: input.runId,
+      ts: input.ts ?? new Date(),
+      epd: input.epd,
+      uci: input.uci,
+      ply: input.ply,
+      result: input.result,
+      playedUci: input.playedUci,
+      hints: input.hints,
+      timeMs: input.timeMs,
+    });
+  }
+
+  async recordLabRun(input: NewLabRunInput) {
+    await this.db.insert(schema.labRun).values({
+      id: input.id,
+      ts: input.ts ?? new Date(),
+      line: input.line.join(' '),
+      eco: input.eco,
+      name: input.name,
+      plies: input.plies,
+      errors: input.errors,
+      hints: input.hints,
+      clean: input.clean,
+      timeMs: input.timeMs,
+    });
+  }
+
+  async labRunSummaries(): Promise<Map<string, LabRunSummary>> {
+    const rows = await this.db
+      .select({ line: schema.labRun.line, ts: schema.labRun.ts, clean: schema.labRun.clean })
+      .from(schema.labRun)
+      .orderBy(asc(schema.labRun.ts), asc(schema.labRun.id));
+    const out = new Map<string, LabRunSummary>();
+    for (const r of rows) {
+      const prev = out.get(r.line);
+      out.set(r.line, {
+        runs: (prev?.runs ?? 0) + 1,
+        cleanStreak: r.clean ? (prev?.cleanStreak ?? 0) + 1 : 0,
+        lastAt: r.ts,
+        lastClean: r.clean,
+      });
+    }
+    return out;
+  }
+
+  async labRuns(line: readonly string[], limit = 20) {
+    const rows = await this.db
+      .select()
+      .from(schema.labRun)
+      .where(eq(schema.labRun.line, line.join(' ')))
+      .orderBy(desc(schema.labRun.ts), desc(schema.labRun.id))
+      .limit(limit);
+    return rows.reverse();
+  }
+
+  async labEdgeStats(): Promise<Map<string, LabEdgeStats>> {
+    const rows = await this.db
+      .select({
+        epd: schema.labAttempt.epd,
+        uci: schema.labAttempt.uci,
+        result: schema.labAttempt.result,
+        playedUci: schema.labAttempt.playedUci,
+      })
+      .from(schema.labAttempt)
+      .orderBy(asc(schema.labAttempt.ts), asc(schema.labAttempt.id));
+    const out = new Map<string, LabEdgeStats>();
+    for (const r of rows) {
+      const key = `${r.epd} ${r.uci}`;
+      const s = out.get(key) ?? { total: 0, firstTry: 0, recent: [], lastWrongUci: null };
+      s.total++;
+      if (r.result === 'correct') s.firstTry++;
+      s.recent = [...s.recent, r.result].slice(-5);
+      if (r.result === 'wrong') s.lastWrongUci = r.playedUci;
+      out.set(key, s);
+    }
+    return out;
   }
 
   close() {

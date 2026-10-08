@@ -2,6 +2,8 @@ import type {
   CardMap,
   DayStat,
   LinePassRecord,
+  RecallAttempt,
+  RecallRun,
   SrsCard,
   Tree,
   TreeChanges,
@@ -11,6 +13,7 @@ import type {
   Attempt,
   AttemptResult,
   Collection,
+  LabRun,
   CollectionKind,
   Color,
   EvalMode,
@@ -147,5 +150,46 @@ export interface Storage {
   seedOpenings(rows: Opening[]): Promise<void>;
   getOpeningByEpd(epd: string): Promise<Opening | undefined>;
 
+  /** Opening lab (ADR 011): appends one move of a recall, keyed by graph edge. */
+  recordLabAttempt(input: NewLabAttemptInput): Promise<void>;
+  /** Opening lab: appends a completed recall of a line. */
+  recordLabRun(input: NewLabRunInput): Promise<void>;
+  /** Per practised line (UCI moves joined by spaces): runs, clean streak, last run. */
+  labRunSummaries(): Promise<Map<string, LabRunSummary>>;
+  /** Runs of one line, oldest first (the last `limit`). */
+  labRuns(line: readonly string[], limit?: number): Promise<LabRun[]>;
+  /** Per graph edge (`${epd} ${uci}`): attempts, right at the first try, last results. */
+  labEdgeStats(): Promise<Map<string, LabEdgeStats>>;
+
   close(): Promise<void>;
+}
+
+export interface NewLabAttemptInput extends RecallAttempt {
+  runId: string;
+  ts?: Date;
+}
+
+export interface NewLabRunInput extends RecallRun {
+  id: string;
+  line: readonly string[];
+  eco: string | null;
+  name: string | null;
+  ts?: Date;
+}
+
+export interface LabRunSummary {
+  runs: number;
+  /** Consecutive clean runs, most recent first. */
+  cleanStreak: number;
+  lastAt: Date;
+  lastClean: boolean;
+}
+
+export interface LabEdgeStats {
+  total: number;
+  firstTry: number;
+  /** Last 5 results, oldest first. */
+  recent: AttemptResult[];
+  /** The mistake of the most recent wrong attempt, if any. */
+  lastWrongUci: string | null;
 }

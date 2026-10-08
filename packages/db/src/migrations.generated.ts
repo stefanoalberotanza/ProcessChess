@@ -32,5 +32,14 @@ export const migrations: Migration[] = [
       "ALTER TABLE `opening` DROP COLUMN `ply`;",
       "ALTER TABLE `collection` ADD `archived_at` integer;"
     ]
+  },
+  {
+    "tag": "0002_opening_lab",
+    "statements": [
+      "CREATE TABLE `lab_attempt` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`run_id` text NOT NULL,\n\t`ts` integer NOT NULL,\n\t`epd` text NOT NULL,\n\t`uci` text NOT NULL,\n\t`ply` integer NOT NULL,\n\t`result` text NOT NULL,\n\t`played_uci` text NOT NULL,\n\t`hints` integer DEFAULT 0 NOT NULL,\n\t`time_ms` integer NOT NULL,\n\tCONSTRAINT \"lab_attempt_result_check\" CHECK(\"lab_attempt\".\"result\" in ('correct','hint','wrong'))\n);",
+      "CREATE INDEX `lab_attempt_edge_ts_idx` ON `lab_attempt` (`epd`,`uci`,`ts`);",
+      "CREATE TABLE `lab_run` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`ts` integer NOT NULL,\n\t`line` text NOT NULL,\n\t`eco` text,\n\t`name` text,\n\t`plies` integer NOT NULL,\n\t`errors` integer NOT NULL,\n\t`hints` integer NOT NULL,\n\t`clean` integer NOT NULL,\n\t`time_ms` integer NOT NULL\n);",
+      "CREATE INDEX `lab_run_line_ts_idx` ON `lab_run` (`line`,`ts`);"
+    ]
   }
 ];

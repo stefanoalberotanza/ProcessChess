@@ -213,3 +213,53 @@ export type NewAttempt = typeof attempt.$inferInsert;
 export type DailyStat = typeof dailyStat.$inferSelect;
 export type Opening = typeof opening.$inferSelect;
 export type LinePass = typeof linePass.$inferSelect;
+
+/**
+ * Opening lab (ADR 011): one row per completed recall of an opening line. Append-only.
+ * `line` is the practised line as space-separated UCI moves from the initial position.
+ */
+export const labRun = sqliteTable(
+  'lab_run',
+  {
+    id: text('id').primaryKey(),
+    ts: integer('ts', { mode: 'timestamp_ms' }).notNull(),
+    line: text('line').notNull(),
+    eco: text('eco'),
+    name: text('name'),
+    plies: integer('plies').notNull(),
+    errors: integer('errors').notNull(),
+    hints: integer('hints').notNull(),
+    clean: integer('clean', { mode: 'boolean' }).notNull(),
+    timeMs: integer('time_ms').notNull(),
+  },
+  (t) => [index('lab_run_line_ts_idx').on(t.line, t.ts)],
+);
+
+/**
+ * Opening lab: one row per move of a recall, keyed by the opening-graph edge it exercises
+ * (position before as EPD + move). Append-only. `run_id` is the run the move belongs to; the run
+ * row is written when the recall ends, so it is not a foreign key (unfinished runs keep their
+ * moves).
+ */
+export const labAttempt = sqliteTable(
+  'lab_attempt',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id').notNull(),
+    ts: integer('ts', { mode: 'timestamp_ms' }).notNull(),
+    epd: text('epd').notNull(),
+    uci: text('uci').notNull(),
+    ply: integer('ply').notNull(),
+    result: text('result', { enum: ATTEMPT_RESULTS }).notNull(),
+    playedUci: text('played_uci').notNull(),
+    hints: integer('hints').notNull().default(0),
+    timeMs: integer('time_ms').notNull(),
+  },
+  (t) => [
+    index('lab_attempt_edge_ts_idx').on(t.epd, t.uci, t.ts),
+    check('lab_attempt_result_check', sql`${t.result} in ('correct','hint','wrong')`),
+  ],
+);
+
+export type LabRun = typeof labRun.$inferSelect;
+export type LabAttempt = typeof labAttempt.$inferSelect;

@@ -12,7 +12,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate && tsx ../../scripts/build-migrations.ts"
+    "db:generate": "tsx ../../scripts/db-generate.ts"
   },
   "dependencies": {
     "@processchess/core": "workspace:*",
