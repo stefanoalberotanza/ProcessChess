@@ -1,5 +1,6 @@
 <script lang="ts">
   import { resolveOpening } from '@processchess/core';
+  import { app } from '$lib/app.svelte';
   import { t } from '$lib/i18n/index.svelte';
 
   interface Props {
@@ -10,7 +11,8 @@
   }
   let { movesSan, outOfRepertoire = null }: Props = $props();
 
-  const opening = $derived(movesSan ? resolveOpening(movesSan) : null);
+  // the openings dataset is loaded with the app (app.ready)
+  const opening = $derived(app.ready && movesSan ? resolveOpening(movesSan) : null);
   const outOfTheory = $derived(
     movesSan !== null && movesSan.length > 0 && (opening?.ply ?? 0) < movesSan.length,
   );
