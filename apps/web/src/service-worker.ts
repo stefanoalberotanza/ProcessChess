@@ -47,7 +47,9 @@ sw.addEventListener('fetch', (event) => {
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE);
-      if (PRECACHED.has(url.pathname) || url.pathname.startsWith('/_app/immutable/')) {
+      // pages: network first, so an online user always gets the latest deploy; cache offline
+      const isPage = request.mode === 'navigate';
+      if (!isPage && (PRECACHED.has(url.pathname) || url.pathname.startsWith('/_app/immutable/'))) {
         const hit = await cache.match(url.pathname);
         if (hit) return hit;
       }
