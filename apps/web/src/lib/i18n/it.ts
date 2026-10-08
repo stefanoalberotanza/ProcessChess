@@ -5,6 +5,7 @@ export const it = {
   'common.loading': 'Caricamento…',
   'common.back': 'Torna alle collezioni',
   'common.cancel': 'Annulla',
+  'common.close': 'Chiudi',
   'error.generic': 'Qualcosa è andato storto: {message}',
   'storage.notPersistent':
     'Il browser non consente il salvataggio locale (OPFS): i dati non verranno salvati alla chiusura della pagina.',
@@ -37,7 +38,10 @@ export const it = {
   'home.title': 'Le tue collezioni',
   'home.collections': 'Collezioni',
   'home.showArchived': 'Mostra archiviate',
-  'home.empty': 'Nessuna collezione. Importa un PGN per iniziare.',
+  'home.emptyTitle': 'Ancora nessuna collezione',
+  'home.emptyHint':
+    'Usa “Importa PGN” per aggiungere il tuo repertorio da un file PGN o da testo incollato.',
+  'home.noArchived': 'Nessuna collezione.',
   'home.name': 'Nome',
   'home.color': 'Giochi con',
   'home.lines': 'Linee',
@@ -48,6 +52,7 @@ export const it = {
   'home.archive': 'Archivia',
   'home.unarchive': 'Ripristina',
 
+  'import.open': 'Importa PGN',
   'import.title': 'Importa PGN',
   'import.target': 'Importa in',
   'import.newCollection': 'Nuova collezione',

@@ -21,7 +21,7 @@
   import type { Collection, MoveHistory as History } from '@processchess/db';
   import { onDestroy, onMount } from 'svelte';
   import Board, { type BoardShape } from '$lib/Board.svelte';
-  import { queryParam, storage } from '$lib/app.svelte';
+  import { app, initApp, queryParam, storage } from '$lib/app.svelte';
   import MoveHistory from '$lib/components/MoveHistory.svelte';
   import OpeningBar from '$lib/components/OpeningBar.svelte';
   import { t } from '$lib/i18n/index.svelte';
@@ -42,6 +42,8 @@
   let writes: Promise<unknown> = Promise.resolve();
 
   onMount(async () => {
+    await initApp();
+    if (!app.ready) return;
     const id = queryParam('id');
     const db = storage();
     collection = id ? ((await db.getCollection(id)) ?? null) : null;
@@ -315,6 +317,8 @@
       </div>
     </div>
   </div>
+{:else if !app.error}
+  <p aria-busy="true">{t('common.loading')}</p>
 {/if}
 
 <style>

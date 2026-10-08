@@ -8,12 +8,12 @@
     treeFromPgn,
   } from '@processchess/core';
   import { type Collection, newId } from '@processchess/db';
-  import { storage } from '$lib/app.svelte';
+  import { app, storage } from '$lib/app.svelte';
   import { t } from '$lib/i18n/index.svelte';
 
   interface Props {
     collections: Collection[];
-    onimported: (collectionId: string) => void;
+    onimported: (collectionId: string, message: string) => void;
   }
   let { collections, onimported }: Props = $props();
 
@@ -71,7 +71,7 @@
       done = t('import.done', { games: games.length, moves: added });
       text = '';
       name = '';
-      onimported(id);
+      onimported(id, done);
     } catch (e) {
       error = describe(e);
     } finally {
@@ -81,8 +81,6 @@
 </script>
 
 <form class="import" onsubmit={submit} aria-labelledby="import-title">
-  <h2 id="import-title">{t('import.title')}</h2>
-
   <label>
     {t('import.target')}
     <select bind:value={target}>
@@ -114,7 +112,8 @@
     <textarea bind:value={text} rows="6" spellcheck="false"></textarea>
   </label>
 
-  <button type="submit" disabled={busy || !text.trim()}>{t('import.submit')}</button>
+  <button type="submit" disabled={busy || !app.ready || !text.trim()}>{t('import.submit')}</button>
+  {#if !app.ready && !app.error}<p class="muted" aria-busy="true">{t('common.loading')}</p>{/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if done}<p class="ok" role="status">{done}</p>{/if}
 </form>
@@ -144,5 +143,8 @@
   }
   .ok {
     color: #2e7d32;
+  }
+  .muted {
+    color: var(--muted);
   }
 </style>

@@ -3,6 +3,7 @@ export const en = {
   'common.loading': 'Loading…',
   'common.back': 'Back to collections',
   'common.cancel': 'Cancel',
+  'common.close': 'Close',
   'error.generic': 'Something went wrong: {message}',
   'storage.notPersistent':
     'Your browser does not allow local storage here (OPFS): data will not be saved after you close this page.',
@@ -35,7 +36,9 @@ export const en = {
   'home.title': 'Your collections',
   'home.collections': 'Collections',
   'home.showArchived': 'Show archived',
-  'home.empty': 'No collections yet. Import a PGN to start.',
+  'home.emptyTitle': 'No collections yet',
+  'home.emptyHint': 'Use “Import PGN” to add your repertoire from a PGN file or pasted text.',
+  'home.noArchived': 'No collections.',
   'home.name': 'Name',
   'home.color': 'You play',
   'home.lines': 'Lines',
@@ -46,6 +49,7 @@ export const en = {
   'home.archive': 'Archive',
   'home.unarchive': 'Restore',
 
+  'import.open': 'Import PGN',
   'import.title': 'Import PGN',
   'import.target': 'Import into',
   'import.newCollection': 'New collection',

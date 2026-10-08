@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { dev } from '$app/environment';
   import { resolve } from '$app/paths';
   import { onMount, type Snippet } from 'svelte';
   import { app, initApp } from '$lib/app.svelte';
@@ -9,7 +10,23 @@
   onMount(() => {
     initLocale();
     void initApp();
+    void setupServiceWorker();
   });
+
+  /** Production: register the offline service worker. Dev: remove any left by a build. */
+  async function setupServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    if (!dev) {
+      await navigator.serviceWorker.register('/service-worker.js');
+      return;
+    }
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((r) => r.unregister()));
+    const keys = await caches.keys();
+    await Promise.all(
+      keys.filter((k) => k.startsWith('processchess-')).map((k) => caches.delete(k)),
+    );
+  }
 </script>
 
 <svelte:head>
@@ -38,11 +55,8 @@
 <main>
   {#if app.error}
     <p class="error" role="alert">{t('error.generic', { message: app.error })}</p>
-  {:else if !app.ready}
-    <p aria-busy="true">{t('common.loading')}</p>
-  {:else}
-    {@render children()}
   {/if}
+  {@render children()}
 </main>
 
 <style>

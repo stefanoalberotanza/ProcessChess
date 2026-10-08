@@ -19,7 +19,7 @@
   import { type Collection, type MoveHistory as History, newId } from '@processchess/db';
   import { onMount } from 'svelte';
   import Board from '$lib/Board.svelte';
-  import { queryParam, storage } from '$lib/app.svelte';
+  import { app, initApp, queryParam, storage } from '$lib/app.svelte';
   import MoveHistory from '$lib/components/MoveHistory.svelte';
   import MoveTree from '$lib/components/MoveTree.svelte';
   import OpeningBar from '$lib/components/OpeningBar.svelte';
@@ -35,6 +35,8 @@
   let notFound = $state(false);
 
   onMount(async () => {
+    await initApp();
+    if (!app.ready) return;
     const id = queryParam('id');
     collection = id ? ((await storage().getCollection(id)) ?? null) : null;
     if (!collection) {
@@ -192,6 +194,8 @@
       {/if}
     </div>
   </div>
+{:else if !app.error}
+  <p aria-busy="true">{t('common.loading')}</p>
 {/if}
 
 <style>
