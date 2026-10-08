@@ -93,6 +93,9 @@ importers:
       '@processchess/core':
         specifier: workspace:*
         version: link:../core
+      '@sqlite.org/sqlite-wasm':
+        specifier: 3.53.4-build1
+        version: 3.53.4-build1
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4
@@ -771,6 +774,10 @@ packages:
     resolution: {integrity: sha512-JY1rQdWOJrKutORqKO1uzrHXV86jFiQzfLFKx2s8S1CjLXL9fC5LOIvk0q7Z7PXJvsByt+sdoE1Q2a9gBr4gLQ==}
     cpu: [x64]
     os: [win32]
+
+  '@sqlite.org/sqlite-wasm@3.53.4-build1':
+    resolution: {integrity: sha512-U8pvL0patYHMgieD8JxxYJTlh9m1LUX8+BDYb7MiKQzBI89f2qbdmdcG/PvnPaLm9wsBbv4VlVG453ixnxBOnA==}
+    engines: {node: '>=22'}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -2174,6 +2181,8 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.64.2':
     optional: true
+
+  '@sqlite.org/sqlite-wasm@3.53.4-build1': {}
 
   '@standard-schema/spec@1.1.0': {}
 

@@ -176,3 +176,10 @@ describe('drill records', () => {
     });
   });
 });
+
+describe('lookups', () => {
+  it('returns undefined for missing rows', async () => {
+    expect(await storage.getCollection('nope')).toBeUndefined();
+    expect(await storage.getNode('nope')).toBeUndefined();
+  });
+});

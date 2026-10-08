@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./memory": "./src/adapters/memory.ts"
+    "./memory": "./src/adapters/memory.ts",
+    "./opfs": "./src/adapters/opfs.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -15,6 +16,7 @@
   },
   "dependencies": {
     "@processchess/core": "workspace:*",
+    "@sqlite.org/sqlite-wasm": "3.53.4-build1",
     "drizzle-orm": "^0.45.4",
     "ulid": "^3.0.2"
   },

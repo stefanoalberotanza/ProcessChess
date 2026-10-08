@@ -13,7 +13,8 @@ export function nodeSqliteExecutor(sqlite: DatabaseSync): SqlExecutor {
     }
     stmt.setReturnArrays(true);
     if (method === 'get') {
-      return { rows: (stmt.get(...args) as unknown as unknown[] | undefined) ?? [] };
+      // no row → rows undefined (Drizzle maps it to `undefined`)
+      return { rows: stmt.get(...args) as unknown as unknown[] };
     }
     return { rows: stmt.all(...args) as unknown as unknown[][] };
   };
