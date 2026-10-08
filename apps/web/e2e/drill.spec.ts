@@ -18,7 +18,31 @@ function counter() {
 async function ready(page: Page) {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Your collections' })).toBeVisible();
+  await expect(page.getByTestId('empty-state')).toBeVisible(); // storage ready, fresh profile
   await expect(page.getByTestId('not-persistent')).toHaveCount(0);
+}
+
+/** Opens the import dialog with the visible "Import PGN" button. */
+async function openImport(page: Page) {
+  await page.getByRole('button', { name: /import pgn/i }).click();
+  const dialog = page.getByRole('dialog', { name: 'Import PGN' });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+/** Picks a file through the browser file chooser opened by the visible file control. */
+async function chooseFile(page: Page, dialog: ReturnType<Page['getByRole']>, path: string) {
+  const chooser = page.waitForEvent('filechooser');
+  await dialog.getByLabel('PGN file').click();
+  await (await chooser).setFiles(path);
+}
+
+async function importPgnText(page: Page, name: string, pgn: string) {
+  const dialog = await openImport(page);
+  await dialog.getByLabel('Name', { exact: true }).fill(name);
+  await dialog.getByLabel('or paste PGN text').fill(pgn);
+  await dialog.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(dialog).toBeHidden();
 }
 
 async function playSan(page: Page, san: string) {
@@ -31,14 +55,31 @@ async function waitSaved(page: Page) {
   await expect(page.locator('[data-saving="false"]')).toBeVisible();
 }
 
+test('the home page always shows the Import PGN button, with an empty-state invite', async ({
+  page,
+}) => {
+  await page.goto('/');
+  // visible immediately, even before the database is ready
+  await expect(page.getByRole('button', { name: /import pgn/i })).toBeVisible();
+  await expect(page.getByTestId('empty-state')).toContainText('No collections yet');
+  await expect(page.getByTestId('empty-state')).toContainText('Import PGN');
+  const dialog = await openImport(page);
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('button', { name: /import pgn/i })).toBeVisible();
+});
+
 test('import the fixture, train a line until clean, reload keeps attempts and state', async ({
   page,
 }) => {
   await ready(page);
-  await page.getByLabel('Name', { exact: true }).fill('E2E repertoire');
-  await page.getByLabel('PGN file').setInputFiles(FIXTURE);
-  await page.getByRole('button', { name: 'Import' }).click();
+  const dialog = await openImport(page);
+  await dialog.getByLabel('Name', { exact: true }).fill('E2E repertoire');
+  await chooseFile(page, dialog, FIXTURE);
+  await dialog.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(dialog).toBeHidden();
   await expect(page.getByRole('status')).toContainText('Imported 2 game(s)');
+  await expect(page.getByTestId('empty-state')).toHaveCount(0);
   await expect(page.getByRole('row', { name: /E2E repertoire/ })).toContainText('White');
 
   await page.getByRole('link', { name: 'Train' }).click();
@@ -67,9 +108,7 @@ test('import the fixture, train a line until clean, reload keeps attempts and st
 
 test('a wrong move is recorded as wrong with the move actually played', async ({ page }) => {
   await ready(page);
-  await page.getByLabel('or paste PGN text').fill('1. e4 e5 2. Nf3 Nc6 *');
-  await page.getByLabel('Name', { exact: true }).fill('Short');
-  await page.getByRole('button', { name: 'Import' }).click();
+  await importPgnText(page, 'Short', '1. e4 e5 2. Nf3 Nc6 *');
   await page.getByRole('link', { name: 'Train' }).click();
 
   await playSan(page, 'd4');
@@ -112,8 +151,7 @@ test('works offline after the first load', async ({ page, context }) => {
   expect(cached.some((u) => u.endsWith('/drill'))).toBe(true);
   expect(cached.some((u) => /opfs\.worker-.*\.js$/.test(u))).toBe(true);
   expect(cached.some((u) => u.endsWith('.wasm'))).toBe(true);
-  await page.getByLabel('or paste PGN text').fill('1. d4 d5 *');
-  await page.getByRole('button', { name: 'Import' }).click();
+  await importPgnText(page, 'Queen pawn', '1. d4 d5 *');
   await expect(page.getByRole('status')).toContainText('Imported 1 game(s)');
 
   await context.setOffline(true);
