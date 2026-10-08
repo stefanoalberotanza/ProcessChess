@@ -1,5 +1,7 @@
+import type { LinePassRecord, Tree, TreeChanges, TreeEdit } from '@processchess/core';
 import type {
   Attempt,
+  AttemptResult,
   Collection,
   CollectionKind,
   Color,
@@ -7,7 +9,6 @@ import type {
   Node,
   Opening,
   Session,
-  AttemptResult,
 } from './schema';
 
 export interface NewCollectionInput {
@@ -42,20 +43,64 @@ export interface NewAttemptInput {
   ts?: Date;
 }
 
+export interface NewLinePassInput extends LinePassRecord {
+  sessionId: string;
+  collectionId: string;
+  ts?: Date;
+}
+
+export interface CollectionSummary {
+  collection: Collection;
+  /** Start of the most recent session, null if never trained. */
+  lastTrainedAt: Date | null;
+}
+
+export interface MoveHistory {
+  /** Up to `limit` most recent attempts, oldest first. */
+  recent: Attempt[];
+  total: number;
+  /** Attempts with result `correct` (right at the first try, no hints). */
+  firstTry: number;
+  /** firstTry / total, null when there are no attempts. */
+  firstTryRate: number | null;
+  /** Most frequent first wrong move (UCI) among `wrong` attempts; ties → most recent. */
+  mostFrequentWrong: { uci: string; count: number } | null;
+}
+
 /**
- * Persistence boundary of the app. Implemented over SQLite by every adapter
- * (in-memory for tests, OPFS on the web, tauri-plugin-sql on native).
+ * Persistence boundary of the app. Implemented once over SQLite (`SqliteStorage`); adapters
+ * (in-memory for tests, OPFS on the web, tauri-plugin-sql on native) only provide the SQL
+ * executor.
  */
 export interface Storage {
-  /** Applies pending migrations. Idempotent. */
-  migrate(): Promise<void>;
+  /** False when data lives in memory only (e.g. OPFS unavailable). */
+  readonly persistent: boolean;
 
-  /** Creates the collection together with its root node (the start position). */
+  /** Applies pending migrations. Idempotent. Returns the tags applied now. */
+  migrate(): Promise<string[]>;
+
+  /** Creates an empty collection with its root node (the start position). */
   createCollection(input: NewCollectionInput): Promise<{ collection: Collection; root: Node }>;
+  /** Creates a collection from a tree built in memory (e.g. by `treeFromPgn`). */
+  createCollectionFromTree(
+    input: Omit<NewCollectionInput, 'startFen' | 'userColor'>,
+    edit: TreeEdit,
+  ): Promise<Collection>;
   getCollection(id: string): Promise<Collection | undefined>;
-  listCollections(): Promise<Collection[]>;
+  /** Non-archived collections unless `includeArchived`. */
+  listCollections(opts?: { includeArchived?: boolean }): Promise<Collection[]>;
+  collectionSummaries(opts?: { includeArchived?: boolean }): Promise<CollectionSummary[]>;
+  /** Collections are never deleted (ADR 002). */
+  archiveCollection(id: string): Promise<void>;
+  unarchiveCollection(id: string): Promise<void>;
 
-  /** Adds a move below `parentId`. Throws if the move is illegal in the parent position. */
+  loadTree(collectionId: string): Promise<Tree>;
+  /** Persists the result of a core tree operation atomically. */
+  applyTreeChanges(collectionId: string, changes: TreeChanges): Promise<void>;
+  /** Nodes of the collection that have at least one attempt (for `deleteSubtree`). */
+  nodeIdsWithAttempts(collectionId: string): Promise<Set<string>>;
+
+  /** Adds a single move below `parentId`. Throws if illegal in the parent position. */
   addNode(input: NewNodeInput): Promise<Node>;
   getNode(id: string): Promise<Node | undefined>;
   getChildren(parentId: string): Promise<Node[]>;
@@ -67,6 +112,12 @@ export interface Storage {
   /** Appends to the attempt log. Attempts are never updated or deleted. */
   recordAttempt(input: NewAttemptInput): Promise<Attempt>;
   listAttempts(nodeId: string): Promise<Attempt[]>;
+  getMoveHistory(nodeId: string, limit?: number): Promise<MoveHistory>;
+
+  /** Appends to the line pass log. */
+  recordLinePass(input: NewLinePassInput): Promise<void>;
+  /** All passes of a collection, oldest first. */
+  listLinePasses(collectionId: string): Promise<LinePassRecord[]>;
 
   /** Replaces the `opening` reference table. */
   seedOpenings(rows: Opening[]): Promise<void>;

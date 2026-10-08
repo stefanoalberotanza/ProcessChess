@@ -1,76 +1,222 @@
-import { Chess } from 'chess.js';
-import { toEpd } from '@processchess/core';
-import { asc, eq } from 'drizzle-orm';
-import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
+import {
+  INITIAL_FEN,
+  type LinePassRecord,
+  type Tree,
+  type TreeChanges,
+  type TreeEdit,
+  archiveCollection,
+  createTree,
+  emptyTree,
+  fenAt,
+  playMove,
+  toEpd,
+} from '@processchess/core';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { type SqliteRemoteDatabase, drizzle } from 'drizzle-orm/sqlite-proxy';
 import { ulid } from 'ulid';
+import type { SqlExecutor } from './executor';
+import { runMigrations } from './migrator';
 import * as schema from './schema';
-import type { Opening } from './schema';
-import type { Storage } from './storage';
+import type { Node, Opening } from './schema';
+import type {
+  CollectionSummary,
+  MoveHistory,
+  NewAttemptInput,
+  NewCollectionInput,
+  NewLinePassInput,
+  NewNodeInput,
+  Storage,
+} from './storage';
 
-export const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+export { INITIAL_FEN };
 
 export type Db = SqliteRemoteDatabase<typeof schema>;
 
-/**
- * Storage implemented once over Drizzle's sqlite-proxy driver: each adapter only has
- * to provide the raw SQL transport and a way to run migrations.
- */
-export class SqliteStorage implements Storage {
-  constructor(
-    protected readonly db: Db,
-    private readonly runMigrations: () => Promise<void>,
-    private readonly onClose: () => Promise<void> = async () => {},
-  ) {}
+/** ULID generator, to pass as `newId` to core tree operations. */
+export const newId = (): string => ulid();
 
-  migrate() {
-    return this.runMigrations();
+const CHUNK = 100;
+
+function chunks<T>(rows: T[], size = CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
+  return out;
+}
+
+/** Storage over any SQLite reachable through a `SqlExecutor` (Drizzle `sqlite-proxy`). */
+export class SqliteStorage implements Storage {
+  protected readonly db: Db;
+  private queue: Promise<unknown> = Promise.resolve();
+
+  constructor(
+    private readonly exec: SqlExecutor,
+    readonly persistent: boolean,
+    private readonly onClose: () => Promise<void> = async () => {},
+  ) {
+    this.db = drizzle(exec, { schema });
   }
 
-  async createCollection(input: Parameters<Storage['createCollection']>[0]) {
-    const startFen = input.startFen ?? INITIAL_FEN;
-    const chess = new Chess(startFen); // validates the FEN
-    const [collection] = await this.db
-      .insert(schema.collection)
-      .values({
-        id: ulid(),
-        name: input.name,
-        kind: input.kind,
-        startFen: chess.fen(),
-        userColor: input.userColor,
-        evalMode: input.evalMode,
-        source: input.source ?? null,
-        license: input.license ?? null,
-      })
-      .returning();
-    const [root] = await this.db
-      .insert(schema.node)
-      .values({
-        id: ulid(),
-        collectionId: collection!.id,
-        parentId: null,
-        epd: toEpd(chess.fen()),
-        isUserMove: false,
-      })
-      .returning();
-    return { collection: collection!, root: root! };
+  /** Serialises transactions: SQLite has one connection per adapter. */
+  private tx<T>(
+    fn: (tx: Parameters<Parameters<Db['transaction']>[0]>[0]) => Promise<T>,
+  ): Promise<T> {
+    const run = this.queue.then(() => this.db.transaction(fn));
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  async migrate() {
+    await this.exec('PRAGMA foreign_keys = ON', [], 'run');
+    return runMigrations(this.exec);
+  }
+
+  async createCollection(input: NewCollectionInput) {
+    const tree = emptyTree(input.startFen ?? INITIAL_FEN, input.userColor, ulid()); // validates FEN
+    const changes = { inserted: [...tree.nodes.values()], updated: [], deleted: [] };
+    const collection = await this.createCollectionFromTree(input, { tree, changes });
+    return { collection, root: (await this.getNode(tree.rootId))! };
+  }
+
+  async createCollectionFromTree(
+    input: Omit<NewCollectionInput, 'startFen' | 'userColor'>,
+    edit: TreeEdit,
+  ) {
+    return this.tx(async (tx) => {
+      const [collection] = await tx
+        .insert(schema.collection)
+        .values({
+          id: ulid(),
+          name: input.name,
+          kind: input.kind,
+          startFen: edit.tree.startFen,
+          userColor: edit.tree.userColor,
+          evalMode: input.evalMode,
+          source: input.source ?? null,
+          license: input.license ?? null,
+        })
+        .returning();
+      const nodes = [...edit.tree.nodes.values()];
+      for (const part of chunks(nodes)) {
+        await tx
+          .insert(schema.node)
+          .values(part.map((n) => ({ ...n, collectionId: collection!.id })));
+      }
+      return collection!;
+    });
   }
 
   async getCollection(id: string) {
     return this.db.query.collection.findFirst({ where: eq(schema.collection.id, id) });
   }
 
-  async listCollections() {
-    return this.db.select().from(schema.collection).orderBy(asc(schema.collection.id));
+  async listCollections(opts: { includeArchived?: boolean } = {}) {
+    return this.db
+      .select()
+      .from(schema.collection)
+      .where(opts.includeArchived ? undefined : isNull(schema.collection.archivedAt))
+      .orderBy(asc(schema.collection.id));
   }
 
-  async addNode(input: Parameters<Storage['addNode']>[0]) {
-    const chess = await this.positionOf(input.parentId);
+  async collectionSummaries(
+    opts: { includeArchived?: boolean } = {},
+  ): Promise<CollectionSummary[]> {
+    const last = this.db
+      .select({
+        collectionId: schema.session.collectionId,
+        lastTrainedAt: sql<number>`max(${schema.session.startedAt})`.as('last_trained_at'),
+      })
+      .from(schema.session)
+      .groupBy(schema.session.collectionId)
+      .as('last');
+    const rows = await this.db
+      .select({ collection: schema.collection, lastTrainedAt: last.lastTrainedAt })
+      .from(schema.collection)
+      .leftJoin(last, eq(last.collectionId, schema.collection.id))
+      .where(opts.includeArchived ? undefined : isNull(schema.collection.archivedAt))
+      .orderBy(asc(schema.collection.id));
+    return rows.map((r) => ({
+      collection: r.collection,
+      lastTrainedAt: r.lastTrainedAt === null ? null : new Date(Number(r.lastTrainedAt)),
+    }));
+  }
+
+  async archiveCollection(id: string) {
+    const c = await this.getCollection(id);
+    if (!c) throw new Error(`Unknown collection ${id}`);
+    const archived = archiveCollection(c);
+    await this.db
+      .update(schema.collection)
+      .set({ archivedAt: archived.archivedAt })
+      .where(eq(schema.collection.id, id));
+  }
+
+  async unarchiveCollection(id: string) {
+    await this.db
+      .update(schema.collection)
+      .set({ archivedAt: null })
+      .where(eq(schema.collection.id, id));
+  }
+
+  async loadTree(collectionId: string): Promise<Tree> {
+    const c = await this.getCollection(collectionId);
+    if (!c) throw new Error(`Unknown collection ${collectionId}`);
+    const rows = await this.db
+      .select()
+      .from(schema.node)
+      .where(eq(schema.node.collectionId, collectionId));
+    return createTree(
+      c.startFen,
+      c.userColor,
+      rows.map((n) => ({
+        id: n.id,
+        parentId: n.parentId,
+        ord: n.ord,
+        epd: n.epd,
+        san: n.san,
+        uci: n.uci,
+        isUserMove: n.isUserMove,
+        comment: n.comment,
+      })),
+    );
+  }
+
+  async applyTreeChanges(collectionId: string, changes: TreeChanges) {
+    if (!changes.inserted.length && !changes.updated.length && !changes.deleted.length) return;
+    await this.tx(async (tx) => {
+      for (const part of chunks(changes.deleted)) {
+        await tx
+          .delete(schema.node)
+          .where(and(eq(schema.node.collectionId, collectionId), inArray(schema.node.id, part)));
+      }
+      for (const part of chunks(changes.inserted)) {
+        await tx.insert(schema.node).values(part.map((n) => ({ ...n, collectionId })));
+      }
+      for (const u of changes.updated) {
+        await tx
+          .update(schema.node)
+          .set({ ord: u.ord, comment: u.comment })
+          .where(and(eq(schema.node.id, u.id), eq(schema.node.collectionId, collectionId)));
+      }
+    });
+  }
+
+  async nodeIdsWithAttempts(collectionId: string) {
+    const rows = await this.db
+      .selectDistinct({ id: schema.attempt.nodeId })
+      .from(schema.attempt)
+      .innerJoin(schema.node, eq(schema.node.id, schema.attempt.nodeId))
+      .where(eq(schema.node.collectionId, collectionId));
+    return new Set(rows.map((r) => r.id));
+  }
+
+  async addNode(input: NewNodeInput) {
     const parent = await this.getNode(input.parentId);
     if (!parent || parent.collectionId !== input.collectionId) {
       throw new Error(`Parent node ${input.parentId} not in collection ${input.collectionId}`);
     }
-    const u = input.uci;
-    const move = chess.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] });
+    const tree = await this.loadTree(input.collectionId);
+    const played = playMove(fenAt(tree, input.parentId), input.uci);
+    if (!played) throw new Error(`Illegal move ${input.uci}`);
     const [node] = await this.db
       .insert(schema.node)
       .values({
@@ -78,9 +224,9 @@ export class SqliteStorage implements Storage {
         collectionId: input.collectionId,
         parentId: input.parentId,
         ord: input.ord ?? 0,
-        epd: toEpd(chess.fen()),
-        san: move.san,
-        uci: move.lan,
+        epd: toEpd(played.fen),
+        san: played.san,
+        uci: played.uci,
         isUserMove: input.isUserMove,
         comment: input.comment ?? null,
       })
@@ -88,7 +234,7 @@ export class SqliteStorage implements Storage {
     return node!;
   }
 
-  async getNode(id: string) {
+  async getNode(id: string): Promise<Node | undefined> {
     return this.db.query.node.findFirst({ where: eq(schema.node.id, id) });
   }
 
@@ -119,7 +265,7 @@ export class SqliteStorage implements Storage {
       .where(eq(schema.session.id, sessionId));
   }
 
-  async recordAttempt(input: Parameters<Storage['recordAttempt']>[0]) {
+  async recordAttempt(input: NewAttemptInput) {
     const [a] = await this.db
       .insert(schema.attempt)
       .values({
@@ -144,12 +290,72 @@ export class SqliteStorage implements Storage {
       .orderBy(asc(schema.attempt.ts), asc(schema.attempt.id));
   }
 
+  async getMoveHistory(nodeId: string, limit = 20): Promise<MoveHistory> {
+    const recent = await this.db
+      .select()
+      .from(schema.attempt)
+      .where(eq(schema.attempt.nodeId, nodeId))
+      .orderBy(desc(schema.attempt.ts), desc(schema.attempt.id))
+      .limit(limit);
+    const [totals] = await this.db
+      .select({
+        total: sql<number>`count(*)`,
+        firstTry: sql<number>`coalesce(sum(case when ${schema.attempt.result} = 'correct' then 1 else 0 end), 0)`,
+      })
+      .from(schema.attempt)
+      .where(eq(schema.attempt.nodeId, nodeId));
+    const [wrong] = await this.db
+      .select({
+        uci: schema.attempt.playedUci,
+        count: sql<number>`count(*)`.as('n'),
+        lastTs: sql<number>`max(${schema.attempt.ts})`.as('last_ts'),
+      })
+      .from(schema.attempt)
+      .where(and(eq(schema.attempt.nodeId, nodeId), eq(schema.attempt.result, 'wrong')))
+      .groupBy(schema.attempt.playedUci)
+      .orderBy(desc(sql`n`), desc(sql`last_ts`))
+      .limit(1);
+    const total = Number(totals?.total ?? 0);
+    const firstTry = Number(totals?.firstTry ?? 0);
+    return {
+      recent: recent.reverse(),
+      total,
+      firstTry,
+      firstTryRate: total === 0 ? null : firstTry / total,
+      mostFrequentWrong: wrong?.uci ? { uci: wrong.uci, count: Number(wrong.count) } : null,
+    };
+  }
+
+  async recordLinePass(input: NewLinePassInput) {
+    await this.db.insert(schema.linePass).values({
+      id: ulid(),
+      sessionId: input.sessionId,
+      collectionId: input.collectionId,
+      lineId: input.lineId,
+      clean: input.clean,
+      diverged: input.diverged,
+      ts: input.ts ?? new Date(),
+    });
+  }
+
+  async listLinePasses(collectionId: string): Promise<LinePassRecord[]> {
+    const rows = await this.db
+      .select({
+        lineId: schema.linePass.lineId,
+        clean: schema.linePass.clean,
+        diverged: schema.linePass.diverged,
+      })
+      .from(schema.linePass)
+      .where(eq(schema.linePass.collectionId, collectionId))
+      .orderBy(asc(schema.linePass.ts), asc(schema.linePass.id));
+    return rows;
+  }
+
   async seedOpenings(rows: Opening[]) {
-    await this.db.delete(schema.opening);
-    const chunk = 500;
-    for (let i = 0; i < rows.length; i += chunk) {
-      await this.db.insert(schema.opening).values(rows.slice(i, i + chunk));
-    }
+    await this.tx(async (tx) => {
+      await tx.delete(schema.opening);
+      for (const part of chunks(rows, 500)) await tx.insert(schema.opening).values(part);
+    });
   }
 
   async getOpeningByEpd(epd: string) {
@@ -158,23 +364,5 @@ export class SqliteStorage implements Storage {
 
   close() {
     return this.onClose();
-  }
-
-  /** Rebuilds the position of a node by replaying moves from the collection's start FEN. */
-  private async positionOf(nodeId: string): Promise<Chess> {
-    const path: string[] = [];
-    let current = await this.getNode(nodeId);
-    if (!current) throw new Error(`Unknown node ${nodeId}`);
-    const collectionId = current.collectionId;
-    while (current?.parentId) {
-      path.push(current.uci!);
-      current = await this.getNode(current.parentId);
-    }
-    const coll = await this.getCollection(collectionId);
-    const chess = new Chess(coll!.startFen);
-    for (const u of path.reverse()) {
-      chess.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] });
-    }
-    return chess;
   }
 }

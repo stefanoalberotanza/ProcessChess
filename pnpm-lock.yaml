@@ -93,9 +93,6 @@ importers:
       '@processchess/core':
         specifier: workspace:*
         version: link:../core
-      chess.js:
-        specifier: 1.4.0
-        version: 1.4.0
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4
@@ -103,6 +100,9 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
     devDependencies:
+      chess.js:
+        specifier: 1.4.0
+        version: 1.4.0
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11

@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js';
-import { resolveOpening, toEpd } from '@processchess/core';
+import { loadOpenings, resolveOpening, toEpd } from '@processchess/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createMemoryStorage } from './adapters/memory';
 import { openingRows } from './openings';
@@ -16,7 +16,7 @@ afterEach(() => storage.close());
 
 describe('SqliteStorage (in-memory)', () => {
   it('migrate is idempotent', async () => {
-    await expect(storage.migrate()).resolves.toBeUndefined();
+    await expect(storage.migrate()).resolves.toEqual([]);
   });
 
   it('stores an opening collection from the initial position with nodes and attempts', async () => {
@@ -163,12 +163,13 @@ describe('SqliteStorage (in-memory)', () => {
   });
 
   it('seeds the opening reference table consistently with resolveOpening', async () => {
-    const rows = openingRows();
+    const rows = await openingRows();
     await storage.seedOpenings(rows);
     const chess = new Chess();
     const moves = ['d4', 'Nf6', 'c4', 'e6', 'Nc3', 'Bb4'];
     for (const m of moves) chess.move(m);
     const row = await storage.getOpeningByEpd(toEpd(chess.fen()));
+    await loadOpenings();
     const resolved = resolveOpening(moves)!;
     expect(row).toMatchObject({
       eco: resolved.eco,

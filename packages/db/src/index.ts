@@ -1,4 +1,16 @@
-export * from './schema';
-export type { NewAttemptInput, NewCollectionInput, NewNodeInput, Storage } from './storage';
-export { INITIAL_FEN, SqliteStorage, type Db } from './sqlite-storage';
+export type { SqlExecutor, SqlMethod } from './executor';
+export { runMigrations } from './migrator';
+export { migrations } from './migrations.generated';
+export type { Migration } from './migrations-bundle';
 export { openingRows } from './openings';
+export * from './schema';
+export { INITIAL_FEN, SqliteStorage, newId, type Db } from './sqlite-storage';
+export type {
+  CollectionSummary,
+  MoveHistory,
+  NewAttemptInput,
+  NewCollectionInput,
+  NewLinePassInput,
+  NewNodeInput,
+  Storage,
+} from './storage';
