@@ -9,7 +9,7 @@ let pending: Promise<OpeningIndex> | undefined;
  */
 export function loadOpenings(): Promise<OpeningIndex> {
   pending ??= import('./openings.json').then((mod) => {
-    const json = mod.default as OpeningIndexJson;
+    const json = mod.default as unknown as OpeningIndexJson;
     index = new Map(Object.entries(json));
     return index;
   });
