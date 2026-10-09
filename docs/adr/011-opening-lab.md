@@ -27,6 +27,11 @@ should be kept.
   - **by name**: the variations of the current level (families at the start), most used first,
     ranked by the dataset lines that reach them; 12 shown, "show all" for the rest.
     Search results can be practised as well.
+- **White and Black openings**: an opening belongs to the side that plays its defining move —
+  the last move of the shortest dataset line with its name (`NameNode.side`, `moverOfLast`):
+  1.e4 c5 Sicilian Defense is Black's, 3.Bc4 Italian Game is White's. Lists mark it with ○ / ●,
+  the by-name list and search can be filtered by side, and a practice session shows the board
+  from that side (both sides are still played).
 - **Practice line** (`openingLine`): the chosen moves extended with the most played book moves
   to 8 plies — the first 4 moves of each side. An opening defined by more moves (e.g. the
   Najdorf, 10 plies) keeps its whole defining line.
