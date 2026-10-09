@@ -42,6 +42,14 @@ export interface NameNode {
   ucis: string[];
   /** Dataset lines that reach the position (popularity). */
   lines: number;
+  /** Whose opening it is: the side that plays its defining (last) move. */
+  side: 'w' | 'b' | null;
+}
+
+/** Side that played the last of `ucis` from the initial position (null when empty). */
+export function moverOfLast(ucis: readonly string[]): 'w' | 'b' | null {
+  if (ucis.length === 0) return null;
+  return ucis.length % 2 === 1 ? 'w' : 'b';
 }
 
 export interface NameTree {
@@ -77,6 +85,7 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
         eco: '',
         ucis: [],
         lines: 0,
+        side: null,
       };
       nodes.set(key, n);
       parent?.children.push(key);
@@ -94,6 +103,7 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
       n.eco = eco;
       n.ucis = ucis;
       n.lines = graph.linesThrough(graphNode);
+      n.side = moverOfLast(ucis);
     }
   }
 
@@ -110,6 +120,7 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
       n.eco = kids[0].eco;
       n.ucis = kids[0].ucis;
       n.lines = kids[0].lines;
+      n.side = kids[0].side;
     }
   };
   const roots = [...nodes.values()].filter((n) => n.parent === null);

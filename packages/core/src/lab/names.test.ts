@@ -5,7 +5,7 @@ import { toEpd } from '../fen';
 import { loadOpenings, openingIndex } from '../openings/data';
 import { type OpeningGraph, loadOpeningGraph } from '../openings/graph';
 import { INITIAL_FEN, playLine } from '../position';
-import { type NameTree, buildNameTree, nameSegments } from './names';
+import { type NameTree, buildNameTree, moverOfLast, nameSegments } from './names';
 
 // expectations come from data/openings/*.tsv
 const dataDir = join(import.meta.dirname, '../../../../data/openings');
@@ -80,5 +80,24 @@ describe('buildNameTree', () => {
 
   it('covers every name of the dataset', () => {
     for (const n of new Set(names)) expect(tree.nodeForName(n), n).toBeDefined();
+  });
+});
+
+describe('opening side', () => {
+  it('is the side that plays the defining move (shortest line of the name in the dataset)', () => {
+    // data/openings: B20 "1. e4 c5", C00 "1. e4 e6", C50 "… 3. Bc4", C60 "… 3. Bb5", C30 "2. f4"
+    expect(tree.get('Sicilian Defense')!.side).toBe('b');
+    expect(tree.get('French Defense')!.side).toBe('b');
+    expect(tree.get('Italian Game')!.side).toBe('w');
+    expect(tree.get('Ruy Lopez')!.side).toBe('w');
+    expect(tree.get("King's Gambit")!.side).toBe('w');
+    expect(tree.nodeForName('Sicilian Defense: Najdorf Variation')!.side).toBe('b');
+  });
+
+  it('follows the parity of the moves', () => {
+    expect(moverOfLast([])).toBeNull();
+    expect(moverOfLast(['e2e4'])).toBe('w');
+    expect(moverOfLast(['e2e4', 'c7c5'])).toBe('b');
+    for (const n of tree.all()) expect(n.side).toBe(moverOfLast(n.ucis));
   });
 });
