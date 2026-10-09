@@ -184,3 +184,11 @@ export function searchOpenings(
   found.sort((a, b) => a.uci.length - b.uci.length || a.name.localeCompare(b.name));
   return found.slice(0, limit);
 }
+
+/**
+ * True when `fen` is a position of the openings dataset: on a book line, whether or not the
+ * dataset gives that position a name. "Out of theory" means this is false.
+ */
+export function isBookPosition(graph: OpeningGraph, fen: string): boolean {
+  return graph.nodeOf(toEpd(fen)) !== undefined;
+}

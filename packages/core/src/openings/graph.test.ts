@@ -3,13 +3,14 @@ import { join } from 'node:path';
 import { Chess } from 'chess.js';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { toEpd } from '../fen';
-import { INITIAL_FEN } from '../position';
+import { INITIAL_FEN, playLine } from '../position';
 import { loadOpenings } from './data';
 import {
   type OpeningGraph,
   bookLinesFrom,
   bookMoves,
   epdHash,
+  isBookPosition,
   loadOpeningGraph,
   searchOpenings,
 } from './graph';
@@ -157,5 +158,27 @@ describe('searchOpenings', () => {
     const results = searchOpenings(graph, 'sicilian dragon', 100);
     expect(results.length).toBeGreaterThan(0);
     expect(results.every((r) => /sicilian/i.test(r.name) && /dragon/i.test(r.name))).toBe(true);
+  });
+});
+
+describe('isBookPosition', () => {
+  it('is true on every position of a book line, named or not (Indian Defense practice line)', async () => {
+    const { buildNameTree, openingLine } = await import('../lab');
+    const { resolveOpening } = await import('./resolve');
+    const indian = buildNameTree(graph).get('Indian Defense')!;
+    const line = openingLine(graph, indian.ucis);
+    let unnamedInBook = 0;
+    for (let ply = 1; ply <= line.length; ply++) {
+      const played = playLine(INITIAL_FEN, line.slice(0, ply))!;
+      expect(isBookPosition(graph, played.fen), `ply ${ply}`).toBe(true);
+      // the old check: the last named position is behind the current one
+      if (resolveOpening(played.san)!.ply < ply) unnamedInBook++;
+    }
+    expect(unnamedInBook).toBeGreaterThan(0);
+  });
+
+  it('is false outside the dataset', () => {
+    expect(isBookPosition(graph, fenAfter(['h4', 'h5', 'Rh3']))).toBe(false);
+    expect(isBookPosition(graph, INITIAL_FEN)).toBe(true);
   });
 });
