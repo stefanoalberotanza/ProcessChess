@@ -66,7 +66,7 @@ async function startTraining(page: Page) {
 const moveTree = (page: Page) => page.getByRole('navigation', { name: 'Moves', exact: true });
 
 async function waitSaved(page: Page) {
-  await expect(page.locator('[data-saving="false"]')).toBeVisible();
+  await expect(page.locator('[data-saving="true"]')).toHaveCount(0);
 }
 
 test('the home page always shows the Import PGN button, with an empty-state invite', async ({
@@ -86,12 +86,15 @@ test('explore the ECO graph, save a line, add the book theory and train it', asy
   await ready(page);
   // search the dataset and jump to the opening
   await page.getByRole('searchbox').fill('najdorf');
-  await page.getByRole('button', { name: /B90 Sicilian Defense: Najdorf Variation 1\.e4/ }).click();
+  await page
+    .getByRole('button', { name: 'Go to Sicilian Defense: Najdorf Variation without practising' })
+    .first() // shortest line first; the dataset has transpositions with the same name
+    .click();
   const bar = page.getByTestId('opening-bar');
   await expect(bar).toContainText('B90');
   await expect(bar).toContainText('Najdorf Variation');
   // book moves from here come from the graph
-  const book = page.getByRole('list', { name: 'Book moves' });
+  const book = page.getByRole('list', { name: 'Practise by move' });
   await expect(book.getByRole('button').first()).toBeVisible();
 
   // one click saves the line in a new Black repertoire
@@ -251,4 +254,73 @@ test('graph view: a board per node, connected to the main board and the repertoi
   await page.getByRole('button', { name: 'White repertoire', exact: true }).click();
   await expectSelected(page, 'White repertoire');
   await expect(nodes.locator('[aria-current="true"]')).toHaveAccessibleName(/In your repertoire/);
+});
+
+test('opening lab: practise by name, rebuild the moves, history per opening and per move', async ({
+  page,
+}) => {
+  await ready(page);
+  const byName = page.getByRole('list', { name: 'Practise by name' });
+  const first = byName.getByRole('button').first();
+  await expect(first).toContainText('new');
+  const lineText = (await first.locator('.line').textContent())!.trim();
+  // "1.e4 e5 2.Nf3 …" → SAN moves to type
+  const sans = lineText.split(' ').map((m) => m.replace(/^\d+\./, ''));
+  expect(sans).toHaveLength(8);
+  await first.click();
+
+  const progress = page.getByTestId('lab-progress');
+  await expect(progress).toHaveText('Move 1 of 8');
+  // first run: one mistake on the second move
+  await playSan(page, sans[0]!);
+  const wrong = sans[1] === 'e5' ? 'c5' : 'e5';
+  await playSan(page, wrong);
+  await expect(page.getByTestId('out-of-line')).toHaveText(`Not the opening move: ${wrong}`);
+  await expect(page.getByTestId('announcement')).toContainText(`The right move is ${sans[1]}`);
+  for (const san of sans.slice(1)) await playSan(page, san);
+  await expect(progress).toHaveText('Opening complete');
+  await expect(page.getByTestId('announcement')).toHaveText(
+    'Opening rebuilt with 1 mistake(s) and 0 hint(s).',
+  );
+  const runs = page.getByTestId('lab-runs');
+  await expect(runs.locator('li')).toHaveCount(1);
+  await expect(runs.locator('li[data-clean="false"]')).toHaveCount(1);
+
+  // three clean repetitions make it automatic
+  for (let i = 0; i < 3; i++) {
+    await page.getByLabel('Your move (SAN)').blur();
+    await page.keyboard.press('r');
+    for (const san of sans) await playSan(page, san);
+    await expect(page.getByTestId('announcement')).toHaveText('Opening rebuilt without mistakes.');
+  }
+  await expect(runs.locator('li')).toHaveCount(4);
+  await expect(page.getByRole('row', { name: new RegExp(`^2\\.${sans[2]}`) })).toBeVisible();
+  await waitSaved(page);
+
+  // back in the list the opening shows as automatic, and it survives a reload
+  await page.getByRole('button', { name: 'Back to the list' }).click();
+  await expect(byName.getByRole('button').first().getByTestId('mastery')).toHaveAccessibleName(
+    /Automatic/,
+  );
+  await page.reload();
+  await expect(byName.getByRole('button').first().getByTestId('mastery')).toHaveAccessibleName(
+    /Automatic/,
+  );
+
+  // the per-edge history colours the graph: the practised first move is green
+  await page.getByRole('tab', { name: 'Graph' }).click();
+  await expect(page.locator('.edges path.good').first()).toBeAttached();
+});
+
+test('opening lab: practise by move from the board position', async ({ page }) => {
+  await ready(page);
+  const byMove = page.getByRole('list', { name: 'Practise by move' });
+  // navigate without practising, then practise a book move from there
+  await byMove.getByRole('button', { name: /^Go to e4/ }).click();
+  await expect(page.getByTestId('opening-bar')).toContainText('B00');
+  await byMove.getByRole('button', { name: /^Practise c5/ }).click();
+  await expect(page.getByTestId('lab-progress')).toHaveText('Move 1 of 8');
+  await playSan(page, 'e4');
+  await playSan(page, 'c5');
+  await expect(page.getByTestId('lab-progress')).toHaveText('Move 3 of 8');
 });
