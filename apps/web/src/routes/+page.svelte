@@ -460,7 +460,9 @@
     <Board
       maxSize={tab === 'graph' ? 380 : 520}
       fen={boardFen}
-      orientation={selected?.userColor === 'b' ? 'black' : 'white'}
+      orientation={(labbing ? lab.item?.side === 'b' : selected?.userColor === 'b')
+        ? 'black'
+        : 'white'}
       interactive={session ? session.awaitingMove : true}
       {lastMove}
       shapes={session ? session.shapes : []}

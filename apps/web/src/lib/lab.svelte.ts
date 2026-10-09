@@ -20,6 +20,8 @@ export interface LabItem {
   line: string[];
   eco: string | null;
   name: string | null;
+  /** Whose opening it is; the board is shown from that side during practice. */
+  side: 'w' | 'b' | null;
 }
 
 export const lineKey = (line: readonly string[]) => line.join(' ');

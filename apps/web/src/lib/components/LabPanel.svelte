@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type LabController, MASTERED_STREAK, edgeKey } from '$lib/lab.svelte';
   import Mastery from '$lib/components/Mastery.svelte';
+  import SideMark from '$lib/components/SideMark.svelte';
   import { formatPercent, t } from '$lib/i18n/index.svelte';
   import { lineKey } from '$lib/lab.svelte';
 
@@ -25,6 +26,7 @@
 {#if recall && item}
   <div class="lab" data-saving={lab.saving > 0 ? 'true' : 'false'}>
     <div class="head">
+      <SideMark side={item.side} />
       <h3>{item.eco ? `${item.eco} ` : ''}{item.name ?? t('lab.unnamed')}</h3>
       <Mastery summary={lab.summaries.get(lineKey(item.line))} />
     </div>

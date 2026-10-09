@@ -8,6 +8,7 @@
     bookMoves,
     buildNameTree,
     joinSegments,
+    moverOfLast,
     nameSegments,
     openingLine,
     playLine,
@@ -16,6 +17,7 @@
   } from '@processchess/core';
   import type { LabRunSummary } from '@processchess/db';
   import Mastery from '$lib/components/Mastery.svelte';
+  import SideMark from '$lib/components/SideMark.svelte';
   import { type LabItem, lineKey } from '$lib/lab.svelte';
   import { t } from '$lib/i18n/index.svelte';
 
@@ -52,6 +54,9 @@
   const LEVEL_SIZE = 12;
   let query = $state('');
   let showAll = $state(false);
+  /** Show the openings of one side only. */
+  let sideFilter = $state<'all' | 'w' | 'b'>('all');
+  const SIDES = ['all', 'w', 'b'] as const;
 
   const names = $derived<NameTree | null>(graph ? buildNameTree(graph) : null);
   const san = $derived(playLine(INITIAL_FEN, ucis)?.san ?? []);
@@ -71,7 +76,11 @@
       ? nameSegments(focus.key).map((_, i, all) => names!.get(joinSegments(all.slice(0, i + 1)))!)
       : [],
   );
-  const levelKeys = $derived(focus ? focus.children : (names?.roots ?? []));
+  const levelKeys = $derived(
+    (focus ? focus.children : (names?.roots ?? [])).filter(
+      (k) => sideFilter === 'all' || names!.get(k)!.side === sideFilter,
+    ),
+  );
   const level = $derived(
     (showAll ? levelKeys : levelKeys.slice(0, LEVEL_SIZE)).map((k) => names!.get(k)!),
   );
@@ -80,6 +89,7 @@
     line: openingLine(graph!, n.ucis),
     eco: n.eco,
     name: n.key,
+    side: n.side,
   });
   const levelItems = $derived(graph ? level.map(item) : []);
   const focusItem = $derived(graph && focus ? item(focus) : null);
@@ -92,11 +102,20 @@
   }
 
   const results = $derived(
-    graph && query.trim().length >= 2 ? searchOpenings(graph, query, 12) : [],
+    graph && query.trim().length >= 2
+      ? searchOpenings(graph, query, 60)
+          .filter((r) => sideFilter === 'all' || moverOfLast(r.uci) === sideFilter)
+          .slice(0, 12)
+      : [],
   );
   const searchItems = $derived<LabItem[]>(
     graph
-      ? results.map((r) => ({ line: openingLine(graph!, r.uci), eco: r.eco, name: r.name }))
+      ? results.map((r) => ({
+          line: openingLine(graph!, r.uci),
+          eco: r.eco,
+          name: r.name,
+          side: moverOfLast(r.uci),
+        }))
       : [],
   );
 
@@ -108,6 +127,7 @@
           line: openingLine(graph!, [...ucis, m.uci]),
           eco: m.eco,
           name: m.name,
+          side: moverOfLast([...ucis, m.uci]),
         }))
       : [],
   );
@@ -153,6 +173,7 @@
             }}
             aria-label={t('lab.enter', { name: it.name ?? '' })}
           >
+            <SideMark side={it.side} />
             <span class="eco">{it.eco}</span>
             <span class="label">{it.name}</span>
           </button>
@@ -172,7 +193,22 @@
   {/if}
 
   <section aria-labelledby="by-name">
-    <h3 id="by-name">{t('lab.byName')}</h3>
+    <div class="name-head">
+      <h3 id="by-name">{t('lab.byName')}</h3>
+      <div class="filter" role="radiogroup" aria-label={t('side.filter')}>
+        {#each SIDES as v (v)}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={sideFilter === v}
+            onclick={() => (sideFilter = v)}
+          >
+            {#if v !== 'all'}<SideMark side={v} />{/if}
+            {t(`side.${v}`)}
+          </button>
+        {/each}
+      </div>
+    </div>
     <nav class="crumbs" aria-label={t('lab.levels')}>
       <button type="button" onclick={() => enter(null)} aria-current={!focus ? 'true' : undefined}
         >{t('lab.all')}</button
@@ -190,6 +226,7 @@
     {#if focus && focusItem}
       <div class="focus" data-testid="lab-focus">
         <div class="focus-head">
+          <SideMark side={focus.side} />
           <span class="eco">{focus.eco}</span>
           <span class="focus-name">{focus.label}</span>
           <Mastery summary={summaries.get(lineKey(focusItem.line))} />
@@ -223,6 +260,7 @@
               onclick={() => enter(n)}
               aria-label={t('lab.enter', { name: n.key })}
             >
+              <SideMark side={n.side} />
               <span class="eco">{n.eco}</span>
               <span class="label">{n.label}</span>
               {#if n.children.length}<span
@@ -263,6 +301,7 @@
               onclick={() => onjump([...ucis, m.uci])}
               aria-label={t('lab.goTo', { san: m.san })}
             >
+              <SideMark side={byMove[i]!.side} />
               <b class="san">{m.san}</b>
               {#if repertoireMoves.includes(m.uci)}<span
                   class="in-rep"
@@ -313,6 +352,34 @@
   h3 {
     margin: 0.4rem 0 0.3rem;
     font-size: 0.95rem;
+  }
+  .name-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .filter {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .filter button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border: none;
+    background: white;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.8rem;
+  }
+  .filter button + button {
+    border-left: 1px solid var(--border);
+  }
+  .filter button[aria-checked='true'] {
+    background: var(--accent);
+    color: white;
   }
   .crumbs {
     display: flex;
@@ -373,7 +440,7 @@
     flex: 1;
     min-width: 0;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 0.45rem;
     text-align: left;
     border: none;
