@@ -136,6 +136,8 @@ export const it = {
   'lab.streak': '{n}/{of} ripetizioni pulite di fila ({runs} ripetizioni)',
   'lab.unnamed': 'Linea senza nome',
   'lab.start': 'Gioca le {n} mosse dell’apertura, per entrambi i colori.',
+  'lab.startAuto': 'Gioca le tue {n} mosse dell’apertura; l’avversario muove da solo.',
+  'lab.autoOpponent': 'Gioca automaticamente le mosse dell’avversario',
   'lab.wrong': '{san} non è la mossa di questa apertura. La mossa giusta è {correct}.',
   'lab.doneClean': 'Apertura ricostruita senza errori.',
   'lab.doneWithErrors': 'Apertura ricostruita con {errors} errori e {hints} aiuti.',

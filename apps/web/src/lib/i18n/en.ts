@@ -131,6 +131,8 @@ export const en = {
   'lab.streak': '{n}/{of} clean runs in a row ({runs} runs)',
   'lab.unnamed': 'Unnamed line',
   'lab.start': 'Play the {n} moves of the opening, both sides.',
+  'lab.startAuto': 'Play your {n} moves of the opening; the opponent plays by itself.',
+  'lab.autoOpponent': 'Play the opponent’s moves automatically',
   'lab.wrong': '{san} is not the move of this opening. The right move is {correct}.',
   'lab.doneClean': 'Opening rebuilt without mistakes.',
   'lab.doneWithErrors': 'Opening rebuilt with {errors} mistake(s) and {hints} hint(s).',

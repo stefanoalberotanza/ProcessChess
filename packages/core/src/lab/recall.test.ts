@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { IllegalMoveError } from '../errors';
 import { toEpd } from '../fen';
 import { INITIAL_FEN, playLine } from '../position';
-import { type RecallState, recallHint, restartRecall, startRecall, submitRecall } from './recall';
+import {
+  type RecallState,
+  recallHint,
+  recallUserPlies,
+  restartRecall,
+  startRecall,
+  submitRecall,
+} from './recall';
 
 const ITALIAN = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4', 'f8c5', 'c2c3', 'g8f6'];
 
@@ -94,6 +101,41 @@ describe('recall session', () => {
     s = restartRecall(s);
     expect(s.ply).toBe(0);
     expect(s.phase).toBe('play');
+  });
+
+  it('plays the moves of the auto side by itself and logs only the user moves', () => {
+    const clock = fakeClock();
+    // the user plays Black: White's first move is played at once
+    const s = startRecall(ITALIAN, { autoSide: 'w', clock: clock.now });
+    expect(s.ply).toBe(1);
+    expect(s.autoSide).toBe('w');
+    expect(recallUserPlies(s)).toBe(4);
+    expect(recallUserPlies(startRecall(ITALIAN))).toBe(8);
+    const r = submitRecall(s, 'e7e5');
+    expect(r.attempt).toMatchObject({ ply: 2, uci: 'e7e5', result: 'correct' });
+    expect(r.autoMoves).toEqual([{ uci: 'g1f3', san: 'Nf3' }]);
+    expect(r.state.ply).toBe(3);
+    const { state, results } = playAll(r.state, ['b8c6', 'f8c5', 'g8f6']);
+    expect(results.map((x) => x.attempt!.uci)).toEqual(['b8c6', 'f8c5', 'g8f6']);
+    expect(state.phase).toBe('done');
+    expect(results.at(-1)!.run).toMatchObject({ plies: 8, errors: 0, clean: true });
+  });
+
+  it('finishes the run when the line ends with an automatic move', () => {
+    // the user plays White; Black's last move ends the line
+    const s = startRecall(ITALIAN, { autoSide: 'b' });
+    expect(s.ply).toBe(0);
+    const { state, results } = playAll(s, ['e2e4', 'g1f3', 'f1c4', 'c2c3']);
+    expect(results.at(-1)!.autoMoves).toEqual([{ uci: 'g8f6', san: 'Nf6' }]);
+    expect(state.phase).toBe('done');
+    expect(results.at(-1)!.run).toMatchObject({ plies: 8, clean: true });
+    expect(restartRecall(state).autoSide).toBe('b');
+  });
+
+  it('is done at once when the auto side plays the whole line', () => {
+    const s = startRecall(['e2e4'], { autoSide: 'w' });
+    expect(s.ply).toBe(1);
+    expect(s.phase).toBe('done');
   });
 
   it('rejects an illegal line and moves after the end', () => {

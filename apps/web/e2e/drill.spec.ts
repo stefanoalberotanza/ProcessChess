@@ -275,6 +275,8 @@ test('opening lab: practise by name, rebuild the moves, history per opening and 
   const sans = lineText.split(' ').map((m) => m.replace(/^\d+\./, ''));
   expect(sans).toHaveLength(8);
   await focusCard.getByRole('button', { name: `Practise ${family}` }).click();
+  // both sides: switch the automatic opponent off
+  await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
 
   const progress = page.getByTestId('lab-progress');
   await expect(progress).toHaveText('Move 1 of 8');
@@ -347,6 +349,7 @@ test('opening lab: practise by move from the board position', async ({ page }) =
   await byMove.getByRole('button', { name: /^Go to e4/ }).click();
   await expect(page.getByTestId('opening-bar')).toContainText('B00');
   await byMove.getByRole('button', { name: /^Practise c5/ }).click();
+  await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
   await expect(page.getByTestId('lab-progress')).toHaveText('Move 1 of 8');
   await playSan(page, 'e4');
   await playSan(page, 'c5');
@@ -389,8 +392,20 @@ test('opening lab: White and Black openings are marked, filtered and practised f
 
   // practising a Black opening shows the board from Black's side
   await page.getByRole('button', { name: 'Practise Sicilian Defense', exact: true }).click();
-  await expect(page.getByTestId('lab-progress')).toHaveText('Move 1 of 8');
   await expect(page.locator('.cg-wrap.orientation-black')).toBeVisible();
+  // the automatic opponent (on by default) plays White's moves: 1.e4 is already on the board
+  const auto = page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' });
+  await expect(auto).toBeChecked();
+  await expect(page.getByTestId('lab-progress')).toHaveText('Move 2 of 8');
+  await expect(page.getByTestId('announcement')).toHaveText(
+    'Play your 4 moves of the opening; the opponent plays by itself. Opponent played e4.',
+  );
+  await playSan(page, 'c5');
+  await expect(page.getByTestId('lab-progress')).toHaveText('Move 4 of 8');
+  await expect(page.getByTestId('announcement')).toContainText('Opponent played Nf3.');
+  // switched off, the run starts again and both sides are asked
+  await auto.uncheck();
+  await expect(page.getByTestId('lab-progress')).toHaveText('Move 1 of 8');
   await page.getByRole('button', { name: 'Back to the list' }).click();
   await expect(page.locator('.cg-wrap.orientation-white')).toBeVisible();
 });
@@ -407,6 +422,7 @@ test('"out of theory" only appears off the book, not on unnamed book positions',
     .split(' ')
     .map((m) => m.replace(/^\d+\./, ''));
   await focusCard.getByRole('button', { name: 'Practise Indian Defense' }).click();
+  await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
   for (const san of sans) {
     await playSan(page, san);
     await expect(page.getByTestId('out-of-theory')).toHaveCount(0);

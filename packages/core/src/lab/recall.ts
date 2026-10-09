@@ -7,7 +7,8 @@ import { INITIAL_FEN, playMove } from '../position';
 /**
  * Recall session (opening lab, ADR 011): the user replays a whole line from memory, both sides.
  * A wrong move reveals the right one, which must then be played; hints are graded like the
- * drill's.
+ * drill's. With `autoSide` the moves of that side are played by themselves (the opponent's part):
+ * only the other side's moves are asked and logged.
  */
 export interface RecallState {
   readonly ucis: readonly string[];
@@ -25,6 +26,8 @@ export interface RecallState {
   readonly hinted: number;
   readonly totalMs: number;
   readonly clock: () => number;
+  /** Side whose moves are played automatically, or null when the user plays both sides. */
+  readonly autoSide: 'w' | 'b' | null;
 }
 
 /** One move of a recall, keyed by the graph edge it exercises (position before + move). */
@@ -55,11 +58,27 @@ export interface RecallResult {
   outcome: 'correct' | 'wrong';
   attempt?: RecallAttempt;
   run?: RecallRun;
+  /** Moves of the auto side played after the user's move. */
+  autoMoves?: { uci: string; san: string }[];
+}
+
+const sideToMove = (fen: string) => fen.split(' ')[1] as 'w' | 'b';
+
+/** First ply from `ply` on that is not the auto side's (the line length when there is none). */
+function skipAuto(state: RecallState, ply: number): number {
+  while (
+    state.autoSide &&
+    ply < state.ucis.length &&
+    sideToMove(state.fens[ply]!) === state.autoSide
+  ) {
+    ply++;
+  }
+  return ply;
 }
 
 export function startRecall(
   ucis: readonly string[],
-  opts: { startFen?: string; clock?: () => number } = {},
+  opts: { startFen?: string; clock?: () => number; autoSide?: 'w' | 'b' | null } = {},
 ): RecallState {
   const fens = [opts.startFen ?? INITIAL_FEN];
   const sans: string[] = [];
@@ -70,12 +89,12 @@ export function startRecall(
     sans.push(r.san);
   });
   const clock = opts.clock ?? Date.now;
-  return {
+  const state: RecallState = {
     ucis: [...ucis],
     sans,
     fens,
     ply: 0,
-    phase: ucis.length ? 'play' : 'done',
+    phase: 'play',
     reveal: null,
     hintLevel: 0,
     firstWrongUci: null,
@@ -84,11 +103,23 @@ export function startRecall(
     hinted: 0,
     totalMs: 0,
     clock,
+    autoSide: opts.autoSide ?? null,
   };
+  const ply = skipAuto(state, 0);
+  return { ...state, ply, phase: ply < ucis.length ? 'play' : 'done' };
+}
+
+/** Moves the user has to play in the line (all of them without an auto side). */
+export function recallUserPlies(state: RecallState): number {
+  return state.fens.slice(0, -1).filter((f) => sideToMove(f) !== state.autoSide).length;
 }
 
 export function restartRecall(state: RecallState): RecallState {
-  return startRecall(state.ucis, { startFen: state.fens[0]!, clock: state.clock });
+  return startRecall(state.ucis, {
+    startFen: state.fens[0]!,
+    clock: state.clock,
+    autoSide: state.autoSide,
+  });
 }
 
 export function submitRecall(state: RecallState, uci: string): RecallResult {
@@ -121,7 +152,7 @@ export function submitRecall(state: RecallState, uci: string): RecallResult {
     hints: state.hintLevel,
     timeMs,
   };
-  const ply = state.ply + 1;
+  const ply = skipAuto(state, state.ply + 1);
   const done = ply >= state.ucis.length;
   const next: RecallState = {
     ...state,
@@ -144,7 +175,16 @@ export function submitRecall(state: RecallState, uci: string): RecallResult {
         timeMs: next.totalMs,
       }
     : undefined;
-  return { state: next, outcome: 'correct', attempt, ...(run ? { run } : {}) };
+  const autoMoves = state.ucis
+    .slice(state.ply + 1, ply)
+    .map((uci, i) => ({ uci, san: state.sans[state.ply + 1 + i]! }));
+  return {
+    state: next,
+    outcome: 'correct',
+    attempt,
+    ...(run ? { run } : {}),
+    ...(autoMoves.length ? { autoMoves } : {}),
+  };
 }
 
 export function recallHint(state: RecallState): { state: RecallState; hint: Hint } {

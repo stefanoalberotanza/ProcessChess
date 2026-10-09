@@ -4,6 +4,7 @@ import {
   type RecallState,
   parseUci,
   recallHint,
+  recallUserPlies,
   restartRecall,
   startRecall,
   submitRecall,
@@ -27,6 +28,16 @@ export interface LabItem {
 export const lineKey = (line: readonly string[]) => line.join(' ');
 export const edgeKey = (fen: string, uci: string) => `${toEpd(fen)} ${uci}`;
 
+const AUTO_KEY = 'processchess.labAutoOpponent';
+
+function loadAutoOpponent(): boolean {
+  try {
+    return localStorage.getItem(AUTO_KEY) !== 'false';
+  } catch {
+    return true; // storage unavailable: the default
+  }
+}
+
 /** Runs needed in a row without mistakes or hints to call an opening automatic. */
 export const MASTERED_STREAK = 3;
 
@@ -41,6 +52,8 @@ export class LabController {
   wrongSan = $state<string | null>(null);
   announcement = $state('');
   saving = $state(0);
+  /** The opponent's moves are played by themselves; the user plays only the opening's side. */
+  autoOpponent = $state(loadAutoOpponent());
   /** Runs of the current item, oldest first. */
   runs = $state.raw<LabRun[]>([]);
   // raw state replaced as a whole on every load, never mutated: plain Maps are enough
@@ -83,6 +96,23 @@ export class LabController {
     if (this.hint?.from) return [{ from: this.hint.from, color: 'blue' }];
     return [];
   }
+  /** The side the user plays when the opponent is automatic (White for a line with no side). */
+  private get autoSide(): 'w' | 'b' | null {
+    if (!this.autoOpponent) return null;
+    return this.item?.side === 'b' ? 'w' : 'b';
+  }
+
+  /** Switches the automatic opponent on or off; the current run starts again. */
+  setAutoOpponent(on: boolean) {
+    this.autoOpponent = on;
+    try {
+      localStorage.setItem(AUTO_KEY, String(on));
+    } catch {
+      // ignore
+    }
+    if (this.item) this.repeat();
+  }
+
   get hasNext(): boolean {
     return this.index + 1 < this.queue.length;
   }
@@ -109,7 +139,7 @@ export class LabController {
   private async begin() {
     this.item = this.queue[this.index] ?? null;
     if (!this.item) return this.stop();
-    this.recall = startRecall(this.item.line);
+    this.recall = startRecall(this.item.line, { autoSide: this.autoSide });
     this.runId = newId();
     this.reset();
     this.runs = await storage().labRuns(this.item.line);
@@ -147,8 +177,8 @@ export class LabController {
   }
 
   repeat() {
-    if (!this.recall) return;
-    this.recall = restartRecall(this.recall);
+    if (!this.recall || !this.item) return;
+    this.recall = restartRecall({ ...this.recall, autoSide: this.autoSide });
     this.runId = newId();
     this.reset();
   }
@@ -162,7 +192,22 @@ export class LabController {
   private reset() {
     this.hint = null;
     this.wrongSan = null;
-    this.announcement = this.recall ? t('lab.start', { n: this.recall.ucis.length }) : '';
+    const r = this.recall;
+    if (!r) {
+      this.announcement = '';
+      return;
+    }
+    if (!r.autoSide) {
+      this.announcement = t('lab.start', { n: r.ucis.length });
+      return;
+    }
+    const parts = [t('lab.startAuto', { n: recallUserPlies(r) })];
+    if (r.ply > 0) parts.push(this.opponentText(r.sans.slice(0, r.ply)));
+    this.announcement = parts.join(' ');
+  }
+
+  private opponentText(sans: readonly string[]): string {
+    return t('drill.announceOpponent', { san: sans.join(' ') });
   }
 
   private handle(r: RecallResult, playedSan: string, fenBefore: string) {
@@ -174,6 +219,10 @@ export class LabController {
     } else {
       this.wrongSan = null;
       this.announcement = t('drill.announceCorrect', { san: playedSan });
+      if (r.autoMoves) {
+        const opp = this.opponentText(r.autoMoves.map((m) => m.san));
+        this.announcement = `${this.announcement} ${opp}`;
+      }
       if (r.run) {
         this.announcement = r.run.clean
           ? t('lab.doneClean')

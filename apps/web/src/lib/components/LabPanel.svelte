@@ -44,6 +44,15 @@
       {/each}
     </ol>
 
+    <label class="toggle">
+      <input
+        type="checkbox"
+        checked={lab.autoOpponent}
+        onchange={(e) => lab.setAutoOpponent(e.currentTarget.checked)}
+      />
+      {t('lab.autoOpponent')}
+    </label>
+
     <p class="live" aria-live="polite" data-testid="announcement">{lab.announcement}</p>
     {#if recall.phase === 'retry'}
       <p class="feedback wrong" role="alert">{t('lab.replay')}</p>
@@ -156,6 +165,12 @@
   }
   .current .num {
     color: inherit;
+  }
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.9rem;
   }
   .live {
     min-height: 1.4rem;

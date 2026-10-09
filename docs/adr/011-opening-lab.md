@@ -31,7 +31,7 @@ should be kept.
   the last move of the shortest dataset line with its name (`NameNode.side`, `moverOfLast`):
   1.e4 c5 Sicilian Defense is Black's, 3.Bc4 Italian Game is White's. Lists mark it with ○ / ●,
   the by-name list and search can be filtered by side, and a practice session shows the board
-  from that side (both sides are still played).
+  from that side.
 - **Practice line** (`openingLine`): the chosen moves extended with the most played book moves
   to 8 plies — the first 4 moves of each side. An opening defined by more moves (e.g. the
   Najdorf, 10 plies) keeps its whole defining line.
@@ -39,6 +39,10 @@ should be kept.
   move of the line, **both sides**, from the initial position. A wrong move reveals the right one
   with an arrow and must be replayed; hints are graded (piece, square, move) as in the drill.
   R repeats, Space moves to the next opening of the same list.
+- **Automatic opponent** (toggle, on by default, remembered per browser): `startRecall` takes an
+  `autoSide` whose moves are played by themselves, so the user plays only the opening's side
+  (White for a line without a side). Automatic moves are not asked and not logged as
+  `lab_attempt`; the run still covers the whole line. Switching the toggle restarts the run.
 - **History** (append-only, `@processchess/db`, migration 0002):
   - `lab_attempt`: one row per move of a recall, keyed by the **opening-graph edge** it
     exercises (EPD of the position before + UCI). Openings that share moves share their history,
