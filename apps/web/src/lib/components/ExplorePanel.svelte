@@ -1,12 +1,17 @@
 <script lang="ts">
   import {
     INITIAL_FEN,
+    type NameNode,
+    type NameTree,
     type OpeningGraph,
     bookLinesFrom,
     bookMoves,
+    buildNameTree,
+    joinSegments,
+    nameSegments,
     openingLine,
     playLine,
-    practiceByName,
+    resolveOpening,
     searchOpenings,
   } from '@processchess/core';
   import type { LabRunSummary } from '@processchess/db';
@@ -26,7 +31,7 @@
     summaries: Map<string, LabRunSummary>;
     /** Starts a lab session on `queue[index]`. */
     onpractice: (queue: LabItem[], index: number) => void;
-    /** Moves the board without practising. */
+    /** Moves the board (entering an opening or a move). */
     onjump: (ucis: string[]) => void;
     onaddbook: (lines: string[][]) => void;
   }
@@ -44,12 +49,57 @@
 
   const MAX_BOOK_LINES = 200;
   const BY_MOVE = 8;
-  const BY_NAME = 10;
+  const LEVEL_SIZE = 12;
   let query = $state('');
+  let showAll = $state(false);
+
+  const names = $derived<NameTree | null>(graph ? buildNameTree(graph) : null);
+  const san = $derived(playLine(INITIAL_FEN, ucis)?.san ?? []);
+  const pathKey = $derived(ucis.join(' '));
+
+  // The level shown follows the board: the name of the position (deepest named one on the path),
+  // unless the user just entered a level by its name (a group may share the position of a child).
+  let manual = $state<{ key: string | null; at: string } | null>(null);
+  const focus = $derived.by((): NameNode | null => {
+    if (!names) return null;
+    if (manual && manual.at === pathKey) return manual.key ? (names.get(manual.key) ?? null) : null;
+    const named = graph && ucis.length ? resolveOpening(san) : null;
+    return named ? (names.nodeForName(named.name) ?? null) : null;
+  });
+  const crumbs = $derived(
+    focus
+      ? nameSegments(focus.key).map((_, i, all) => names!.get(joinSegments(all.slice(0, i + 1)))!)
+      : [],
+  );
+  const levelKeys = $derived(focus ? focus.children : (names?.roots ?? []));
+  const level = $derived(
+    (showAll ? levelKeys : levelKeys.slice(0, LEVEL_SIZE)).map((k) => names!.get(k)!),
+  );
+
+  const item = (n: NameNode): LabItem => ({
+    line: openingLine(graph!, n.ucis),
+    eco: n.eco,
+    name: n.key,
+  });
+  const levelItems = $derived(graph ? level.map(item) : []);
+  const focusItem = $derived(graph && focus ? item(focus) : null);
+
+  function enter(n: NameNode | null) {
+    const target = n ? n.ucis : [];
+    manual = { key: n?.key ?? null, at: target.join(' ') };
+    showAll = false;
+    onjump(target);
+  }
 
   const results = $derived(
     graph && query.trim().length >= 2 ? searchOpenings(graph, query, 12) : [],
   );
+  const searchItems = $derived<LabItem[]>(
+    graph
+      ? results.map((r) => ({ line: openingLine(graph!, r.uci), eco: r.eco, name: r.name }))
+      : [],
+  );
+
   const moves = $derived(graph ? bookMoves(graph, fen).slice(0, BY_MOVE) : []);
   const maxLines = $derived(Math.max(1, ...moves.map((m) => m.lines)));
   const byMove = $derived<LabItem[]>(
@@ -61,25 +111,23 @@
         }))
       : [],
   );
-  const named = $derived(graph ? practiceByName(graph, { under: ucis, limit: BY_NAME }) : []);
-  const byName = $derived<LabItem[]>(
-    named.map((o) => ({ line: o.line, eco: o.eco, name: o.name })),
-  );
-  const searchItems = $derived<LabItem[]>(
-    graph
-      ? results.map((r) => ({ line: openingLine(graph!, r.uci), eco: r.eco, name: r.name }))
-      : [],
-  );
   const bookLines = $derived(
     graph && userColor ? bookLinesFrom(graph, fen, userColor, { maxLines: MAX_BOOK_LINES }) : [],
   );
 
-  function sanLine(line: string[], from = 0): string {
-    const san = playLine(INITIAL_FEN, line)?.san ?? [];
-    return san
-      .map((m, i) => (i % 2 === 0 ? `${i / 2 + 1}.${m}` : m))
-      .slice(from)
-      .join(' ');
+  /** A name relative to the level shown ("English Attack" inside the Najdorf). */
+  function relativeName(name: string): string {
+    if (!focus) return name;
+    if (name === focus.key) return '=';
+    for (const sep of [': ', ', ']) {
+      if (name.startsWith(focus.key + sep)) return name.slice(focus.key.length + sep.length);
+    }
+    return name; // another family: a transposition
+  }
+
+  function sanLine(line: string[]): string {
+    const moves = playLine(INITIAL_FEN, line)?.san ?? [];
+    return moves.map((m, i) => (i % 2 === 0 ? `${i / 2 + 1}.${m}` : m)).join(' ');
   }
 </script>
 
@@ -90,27 +138,31 @@
   </label>
   {#if searchItems.length}
     <ul class="list" aria-label={t('explore.results')}>
-      {#each searchItems as item, i (lineKey(item.line) + i)}
-        <li class="with-go">
+      {#each searchItems as it, i (lineKey(it.line) + i)}
+        <li class="row">
           <button
             type="button"
-            class="item"
-            onclick={() => onpractice(searchItems, i)}
-            aria-label={t('lab.practise', { name: `${item.eco} ${item.name}` })}
-          >
-            <span class="title"><b>{item.eco}</b> {item.name}</span>
-            <Mastery summary={summaries.get(lineKey(item.line))} />
-            <span class="line">{sanLine(item.line)}</span>
-          </button>
-          <button
-            type="button"
-            class="go"
-            title={t('lab.goToOpening', { name: item.name ?? '' })}
-            aria-label={t('lab.goToOpening', { name: item.name ?? '' })}
+            class="enter"
             onclick={() => {
-              onjump(results[i]!.uci);
+              // read the result before clearing the query (the results derive from it)
+              const target = results[i]!.uci;
+              const n = names?.nodeForName(it.name!);
               query = '';
-            }}>→</button
+              if (n) enter({ ...n, ucis: target });
+              else onjump(target);
+            }}
+            aria-label={t('lab.enter', { name: it.name ?? '' })}
+          >
+            <span class="eco">{it.eco}</span>
+            <span class="label">{it.name}</span>
+          </button>
+          <Mastery summary={summaries.get(lineKey(it.line))} />
+          <button
+            type="button"
+            class="play"
+            onclick={() => onpractice(searchItems, i)}
+            aria-label={t('lab.practise', { name: `${it.eco} ${it.name}` })}
+            title={t('lab.practise', { name: `${it.eco} ${it.name}` })}>▶</button
           >
         </li>
       {/each}
@@ -119,68 +171,123 @@
     <p class="muted">{t('explore.noResults')}</p>
   {/if}
 
-  <h3>{t('lab.byMove')}</h3>
-  {#if !graph}
-    <p class="muted" aria-busy="true">{t('common.loading')}</p>
-  {:else if moves.length === 0}
-    <p class="muted">{t('explore.outOfBook')}</p>
-  {:else}
-    <ul class="list" aria-label={t('lab.byMove')}>
-      {#each moves as m, i (m.uci)}
-        <li class="with-go">
-          <button
-            type="button"
-            class="item"
-            onclick={() => onpractice(byMove, i)}
-            aria-label={t('lab.practise', {
-              name: `${m.san}${m.name ? ` (${m.eco} ${m.name})` : ''}`,
-            })}
-          >
-            <span class="title">
+  <section aria-labelledby="by-name">
+    <h3 id="by-name">{t('lab.byName')}</h3>
+    <nav class="crumbs" aria-label={t('lab.levels')}>
+      <button type="button" onclick={() => enter(null)} aria-current={!focus ? 'true' : undefined}
+        >{t('lab.all')}</button
+      >
+      {#each crumbs as c (c.key)}
+        <span aria-hidden="true">›</span>
+        <button
+          type="button"
+          onclick={() => enter(c)}
+          aria-current={c.key === focus?.key ? 'true' : undefined}>{c.label}</button
+        >
+      {/each}
+    </nav>
+
+    {#if focus && focusItem}
+      <div class="focus" data-testid="lab-focus">
+        <div class="focus-head">
+          <span class="eco">{focus.eco}</span>
+          <span class="focus-name">{focus.label}</span>
+          <Mastery summary={summaries.get(lineKey(focusItem.line))} />
+        </div>
+        <p class="line">{sanLine(focusItem.line)}</p>
+        <button
+          type="button"
+          class="primary"
+          onclick={() => onpractice([focusItem], 0)}
+          aria-label={t('lab.practise', { name: focus.key })}
+        >
+          ▶ {t('lab.practiseThis')}
+        </button>
+      </div>
+    {/if}
+
+    {#if !names}
+      <p class="muted" aria-busy="true">{t('common.loading')}</p>
+    {:else if level.length === 0}
+      <p class="muted">{t('lab.noSublevels')}</p>
+    {:else}
+      <ul
+        class="list"
+        aria-label={focus ? t('lab.variationsOf', { name: focus.label }) : t('lab.families')}
+      >
+        {#each level as n, i (n.key)}
+          <li class="row">
+            <button
+              type="button"
+              class="enter"
+              onclick={() => enter(n)}
+              aria-label={t('lab.enter', { name: n.key })}
+            >
+              <span class="eco">{n.eco}</span>
+              <span class="label">{n.label}</span>
+              {#if n.children.length}<span
+                  class="sub"
+                  title={t('lab.sublevels', { n: n.children.length })}>{n.children.length} ›</span
+                >{/if}
+            </button>
+            <Mastery summary={summaries.get(lineKey(levelItems[i]!.line))} />
+            <button
+              type="button"
+              class="play"
+              onclick={() => onpractice(levelItems, i)}
+              aria-label={t('lab.practise', { name: n.key })}
+              title={t('lab.practise', { name: n.key })}>▶</button
+            >
+          </li>
+        {/each}
+      </ul>
+      {#if levelKeys.length > LEVEL_SIZE && !showAll}
+        <button type="button" class="more" onclick={() => (showAll = true)}>
+          {t('lab.showAll', { n: levelKeys.length })}
+        </button>
+      {/if}
+    {/if}
+  </section>
+
+  <section aria-labelledby="by-move">
+    <h3 id="by-move">{t('lab.byMove')}</h3>
+    {#if graph && moves.length === 0}
+      <p class="muted">{t('explore.outOfBook')}</p>
+    {:else}
+      <ul class="list" aria-label={t('lab.byMove')}>
+        {#each moves as m, i (m.uci)}
+          <li class="row">
+            <button
+              type="button"
+              class="enter"
+              onclick={() => onjump([...ucis, m.uci])}
+              aria-label={t('lab.goTo', { san: m.san })}
+            >
               <b class="san">{m.san}</b>
               {#if repertoireMoves.includes(m.uci)}<span
                   class="in-rep"
                   title={t('explore.inRepertoire')}>✓</span
                 >{/if}
-              <span class="opening">{m.name ? `${m.eco} ${m.name}` : ''}</span>
-            </span>
+              <span class="label muted" title={m.name ? `${m.eco} ${m.name}` : undefined}
+                >{m.name ? `${m.eco} ${relativeName(m.name)}` : ''}</span
+              >
+              <span class="bar" style:width={`${Math.max(4, (m.lines / maxLines) * 100)}%`}></span>
+            </button>
             <Mastery summary={summaries.get(lineKey(byMove[i]!.line))} />
-            <span class="line">{sanLine(byMove[i]!.line, ucis.length)}</span>
-            <span class="bar" style:width={`${Math.max(4, (m.lines / maxLines) * 100)}%`}></span>
-          </button>
-          <button
-            type="button"
-            class="go"
-            title={t('lab.goTo', { san: m.san })}
-            aria-label={t('lab.goTo', { san: m.san })}
-            onclick={() => onjump([...ucis, m.uci])}>→</button
-          >
-        </li>
-      {/each}
-    </ul>
-  {/if}
-
-  <h3>{t('lab.byName')}</h3>
-  {#if named.length === 0 && graph}
-    <p class="muted">{t('lab.noNames')}</p>
-  {:else}
-    <ul class="list" aria-label={t('lab.byName')}>
-      {#each named as o, i (o.line.join(' '))}
-        <li>
-          <button
-            type="button"
-            class="item"
-            onclick={() => onpractice(byName, i)}
-            aria-label={t('lab.practise', { name: `${o.eco} ${o.name}` })}
-          >
-            <span class="title"><b>{o.eco}</b> {o.name}</span>
-            <Mastery summary={summaries.get(lineKey(byName[i]!.line))} />
-            <span class="line">{sanLine(byName[i]!.line)}</span>
-          </button>
-        </li>
-      {/each}
-    </ul>
-  {/if}
+            <button
+              type="button"
+              class="play"
+              onclick={() => onpractice(byMove, i)}
+              aria-label={t('lab.practise', {
+                name: `${m.san}${m.name ? ` (${m.eco} ${m.name})` : ''}`,
+              })}
+              title={sanLine(byMove[i]!.line)}>▶</button
+            >
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
 
   {#if userColor && bookLines.length > 0}
     <button type="button" class="primary" onclick={() => onaddbook(bookLines)}>
@@ -196,7 +303,7 @@
   .explore {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.6rem;
   }
   .search input {
     width: 100%;
@@ -204,54 +311,97 @@
     padding: 0.4rem 0.5rem;
   }
   h3 {
-    margin: 0.6rem 0 0;
+    margin: 0.4rem 0 0.3rem;
     font-size: 0.95rem;
+  }
+  .crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.15rem;
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+  }
+  .crumbs button {
+    border: none;
+    background: none;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    color: var(--accent);
+  }
+  .crumbs button[aria-current='true'] {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .crumbs span {
+    color: var(--muted);
+  }
+  .focus {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.6rem;
+    margin-bottom: 0.5rem;
+    background: white;
+  }
+  .focus-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .focus-name {
+    font-weight: 600;
+    flex: 1;
+  }
+  .line {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin: 0.25rem 0 0.4rem;
   }
   .list {
     list-style: none;
     padding: 0;
     margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
   }
-  .with-go {
+  .row {
     display: flex;
-    gap: 2px;
+    align-items: center;
+    gap: 0.35rem;
+    border-bottom: 1px solid var(--border);
   }
-  .item {
+  .enter {
     position: relative;
     flex: 1;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 0 0.5rem;
-    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
     text-align: left;
-    border: 1px solid transparent;
+    border: none;
     background: none;
-    padding: 0.3rem 0.45rem;
-    border-radius: 5px;
+    padding: 0.4rem 0.3rem;
+    border-radius: 4px;
   }
-  .item:hover {
+  .enter:hover {
     background: var(--hover);
-    border-color: var(--border);
   }
-  .title {
+  .label {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    flex: 1;
   }
-  .line {
-    grid-column: 1 / -1;
-    font-size: 0.78rem;
+  .eco {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--muted);
+    min-width: 2.2rem;
+  }
+  .sub {
+    font-size: 0.75rem;
     color: var(--muted);
   }
   .san {
-    margin-right: 0.3rem;
-  }
-  .opening {
-    font-size: 0.85rem;
-    color: var(--muted);
+    min-width: 2.6rem;
   }
   .in-rep {
     color: #2e7d32;
@@ -263,17 +413,24 @@
     bottom: 0;
     height: 2px;
     background: var(--accent);
-    opacity: 0.45;
+    opacity: 0.4;
   }
-  .go {
+  .play {
     border: none;
     background: none;
-    color: var(--muted);
-    padding: 0 0.5rem;
-    border-radius: 5px;
+    color: var(--accent);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
   }
-  .go:hover {
+  .play:hover {
     background: var(--hover);
+  }
+  .more {
+    border: none;
+    background: none;
+    color: var(--accent);
+    padding: 0.3rem 0;
+    text-align: left;
   }
   .muted {
     color: var(--muted);
