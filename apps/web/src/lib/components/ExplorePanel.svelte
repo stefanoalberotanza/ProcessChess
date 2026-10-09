@@ -8,6 +8,7 @@
     bookMoves,
     buildNameTree,
     joinSegments,
+    labelOfUci,
     moverOfLast,
     nameSegments,
     openingLine,
@@ -57,6 +58,9 @@
   /** Show the openings of one side only. */
   let sideFilter = $state<'all' | 'w' | 'b'>('all');
   const SIDES = ['all', 'w', 'b'] as const;
+  /** Show the openings of one style only (first move: 1.e4, 1.d4, other; ADR 012). */
+  let styleFilter = $state<'all' | 'king' | 'queen' | 'flank'>('all');
+  const STYLES = ['all', 'king', 'queen', 'flank'] as const;
 
   const names = $derived<NameTree | null>(graph ? buildNameTree(graph) : null);
   const san = $derived(playLine(INITIAL_FEN, ucis)?.san ?? []);
@@ -78,7 +82,9 @@
   );
   const levelKeys = $derived(
     (focus ? focus.children : (names?.roots ?? [])).filter(
-      (k) => sideFilter === 'all' || names!.get(k)!.side === sideFilter,
+      (k) =>
+        (sideFilter === 'all' || names!.get(k)!.side === sideFilter) &&
+        (styleFilter === 'all' || names!.get(k)!.style === styleFilter),
     ),
   );
   const level = $derived(
@@ -105,6 +111,9 @@
     graph && query.trim().length >= 2
       ? searchOpenings(graph, query, 60)
           .filter((r) => sideFilter === 'all' || moverOfLast(r.uci) === sideFilter)
+          .filter(
+            (r) => styleFilter === 'all' || (r.uci[0] && labelOfUci(r.uci[0])) === styleFilter,
+          )
           .slice(0, 12)
       : [],
   );
@@ -208,6 +217,18 @@
           </button>
         {/each}
       </div>
+    </div>
+    <div class="filter style" role="radiogroup" aria-label={t('style.filter')}>
+      {#each STYLES as v (v)}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={styleFilter === v}
+          onclick={() => (styleFilter = v)}
+        >
+          {v === 'all' ? t('style.all') : t(`opening.label.${v}`)}
+        </button>
+      {/each}
     </div>
     <nav class="crumbs" aria-label={t('lab.levels')}>
       <button type="button" onclick={() => enter(null)} aria-current={!focus ? 'true' : undefined}
@@ -373,6 +394,9 @@
     background: white;
     padding: 0.2rem 0.55rem;
     font-size: 0.8rem;
+  }
+  .filter.style {
+    margin-bottom: 0.4rem;
   }
   .filter button + button {
     border-left: 1px solid var(--border);

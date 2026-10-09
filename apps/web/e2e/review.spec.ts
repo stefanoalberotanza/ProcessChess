@@ -70,6 +70,15 @@ test('trained moves become due, are reviewed and show up in the statistics', asy
   await expect(page.getByTestId('streak')).toHaveText('1 day(s)');
   await expect(page.getByRole('img', { name: /moves played per day/i })).toBeVisible();
   await expect(page.getByRole('row', { name: /Italian/ })).toBeVisible();
+  // by style, opening, variation (ADR 012)
+  const byOpening = page.getByTestId('opening-stats');
+  await expect(byOpening.getByRole('row', { name: /King's game/ })).toBeVisible();
+  await page
+    .getByRole('radiogroup', { name: 'Group by' })
+    .getByRole('radio', { name: 'Opening' })
+    .click();
+  await expect(byOpening.getByRole('row', { name: /Italian Game/ })).toBeVisible();
+  await expect(byOpening).not.toContainText("King's Pawn Game");
 
   // nothing else is due now
   await page.goto('/');

@@ -10,7 +10,7 @@
     fillDays,
     streak,
   } from '@processchess/core';
-  import type { Collection } from '@processchess/db';
+  import type { Collection, OpeningStatsRow } from '@processchess/db';
   import { app, storage } from '$lib/app.svelte';
   import { formatPercent, i18n, t } from '$lib/i18n/index.svelte';
 
@@ -46,6 +46,27 @@
   $effect(() => {
     if (app.ready) void load();
   });
+
+  // by style / opening / variation, repertoire drills and opening lab together (ADR 012)
+  const GROUPINGS = ['label', 'opening', 'variation'] as const;
+  const SIDES = ['all', 'w', 'b'] as const;
+  let by = $state<(typeof GROUPINGS)[number]>('label');
+  let side = $state<(typeof SIDES)[number]>('all');
+  let openingRows = $state.raw<OpeningStatsRow[]>([]);
+  $effect(() => {
+    if (!app.ready) return;
+    const query = { by, userColor: side === 'all' ? undefined : side };
+    void storage()
+      .openingStats(query)
+      .then((r) => {
+        openingRows = [...r].sort((a, b) => b.attempts - a.attempts);
+      });
+  });
+
+  function openingRowName(r: OpeningStatsRow): string {
+    if (by === 'label') return r.label ? t(`opening.label.${r.label}`) : '–';
+    return r.variation ? `${r.opening} › ${r.variation}` : (r.opening ?? '–');
+  }
 
   const today = $derived(days.at(-1));
   const max = $derived(Math.max(1, ...days.map((d) => d.attempts)));
@@ -182,6 +203,50 @@
     {/if}
   </section>
 
+  <section aria-labelledby="by-opening-title">
+    <h2 id="by-opening-title">{t('stats.byOpening')}</h2>
+    <div class="controls">
+      <div class="filter" role="radiogroup" aria-label={t('stats.groupBy')}>
+        {#each GROUPINGS as g (g)}
+          <button type="button" role="radio" aria-checked={by === g} onclick={() => (by = g)}
+            >{t(`stats.by.${g}`)}</button
+          >
+        {/each}
+      </div>
+      <div class="filter" role="radiogroup" aria-label={t('stats.side')}>
+        {#each SIDES as v (v)}
+          <button type="button" role="radio" aria-checked={side === v} onclick={() => (side = v)}
+            >{t(`side.${v}`)}</button
+          >
+        {/each}
+      </div>
+    </div>
+    {#if openingRows.length === 0}
+      <p class="muted">{t('stats.none')}</p>
+    {:else}
+      <table class="collections" data-testid="opening-stats">
+        <thead>
+          <tr>
+            <th>{t(`stats.by.${by}`)}</th>
+            <th>{t('stats.played')}</th>
+            <th>{t('stats.firstTry')}</th>
+            <th>{t('stats.wrong')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each openingRows as r (`${r.label}|${r.opening}|${r.variation}`)}
+            <tr>
+              <td>{openingRowName(r)}</td>
+              <td>{r.attempts}</td>
+              <td>{formatPercent(r.correct / r.attempts)}</td>
+              <td>{r.wrong}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+  </section>
+
   {#if rows.length}
     <section aria-labelledby="by-collection-title">
       <h2 id="by-collection-title">{t('stats.byCollection')}</h2>
@@ -287,5 +352,30 @@
   }
   .muted {
     color: var(--muted);
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .filter {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .filter button {
+    border: none;
+    background: white;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.85rem;
+  }
+  .filter button + button {
+    border-left: 1px solid var(--border);
+  }
+  .filter button[aria-checked='true'] {
+    background: var(--accent);
+    color: white;
   }
 </style>

@@ -16,5 +16,7 @@ export type {
   NewCollectionInput,
   NewLinePassInput,
   NewNodeInput,
+  OpeningStatsQuery,
+  OpeningStatsRow,
   Storage,
 } from './storage';

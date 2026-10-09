@@ -40,8 +40,14 @@ groups attempts by label, opening or variation (archived collections excluded).
 
 - The opening bar reads "King's game · C84 Ruy Lopez › Closed"; after 1.e4 alone it shows only
   the label.
-- The opening lab's name tree (ADR 011) still lists the dataset families as they are, one-move
-  ones included; applying the label rule there is a separate change.
+- Opening lab (ADR 011): in the name tree a level named at one move takes a deeper position of
+  the same name (King's Pawn Game → 1.e4 e5, C20); a level named only at one move becomes a
+  group of its variations (English Opening). Every level has a `style`, and the by-name list
+  and search can be filtered by style.
+- `openingStats()` also counts opening-lab moves: each is classified by its run's line up to
+  that move (`classifyOpeningUci`); moves of unfinished runs have no stored line and are left
+  out. The statistics page has a "By opening" section (style / opening / variation, White /
+  Black).
 - A dataset update can change classifications; re-running the backfill only fills null rows,
   so a full reclassification would need an explicit pass.
 - A curated family grouping (e.g. QGD under Queen's Gambit) can be layered on later without

@@ -348,6 +348,28 @@ test('opening lab: levels follow the board, by name and by move', async ({ page 
   await expect(page.getByTestId('opening-bar')).toContainText('Starting position');
 });
 
+test('opening lab: families filtered by style, one-move names are not openings', async ({
+  page,
+}) => {
+  await ready(page);
+  const styles = page.getByRole('radiogroup', { name: 'Openings by style' });
+  const families = page.getByRole('list', { name: 'Opening families' });
+  await styles.getByRole('radio', { name: "Queen's game" }).click();
+  await expect(
+    families.getByRole('button', { name: "Open Queen's Gambit Declined", exact: true }),
+  ).toBeVisible();
+  await expect(
+    families.getByRole('button', { name: 'Open Sicilian Defense', exact: true }),
+  ).toHaveCount(0);
+  await styles.getByRole('radio', { name: "King's game" }).click();
+  await expect(
+    families.getByRole('button', { name: 'Open Sicilian Defense', exact: true }),
+  ).toBeVisible();
+  // King's Pawn Game is entered at 1.e4 e5 (C20), not at the one-move 1.e4
+  await families.getByRole('button', { name: "Open King's Pawn Game", exact: true }).click();
+  await expect(page.getByTestId('lab-focus')).toContainText('C20');
+});
+
 test('opening lab: practise by move from the board position', async ({ page }) => {
   await ready(page);
   const byMove = page.getByRole('list', { name: 'Practise by move' });
@@ -394,7 +416,7 @@ test('opening lab: White and Black openings are marked, filtered and practised f
   await expect(families.locator('[data-side="b"]').first()).toBeVisible();
   await page.getByRole('radio', { name: 'White' }).click();
   await expect(families.locator('[data-side="b"]')).toHaveCount(0);
-  await page.getByRole('radio', { name: 'All' }).click();
+  await page.getByRole('radio', { name: 'All', exact: true }).click();
 
   // practising a Black opening shows the board from Black's side
   await page.getByRole('button', { name: 'Practise Sicilian Defense', exact: true }).click();
