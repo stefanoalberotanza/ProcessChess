@@ -6,6 +6,8 @@ export { isOpeningsLoaded, loadOpenings } from './openings/data';
 export {
   OpeningsNotLoadedError,
   classifyOpening,
+  classifyOpeningUci,
+  labelOfUci,
   resolveOpening,
   splitOpeningName,
 } from './openings/resolve';

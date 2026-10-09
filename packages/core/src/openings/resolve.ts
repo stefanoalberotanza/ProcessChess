@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 import { IllegalMoveError } from '../errors';
 import { toEpd } from '../fen';
+import { INITIAL_FEN, playLine } from '../position';
 import { openingIndex } from './data';
 import type { OpeningClassification, OpeningLabel, ResolvedOpening } from './types';
 
@@ -85,6 +86,17 @@ export function resolveOpening(movesSan: readonly string[]): ResolvedOpening | n
 export function classifyOpening(movesSan: readonly string[]): OpeningClassification {
   const first = movesSan[0];
   return classifyNamedPath(first === undefined ? null : labelOf(first), namedPath(movesSan));
+}
+
+/** Style label of a first move given in UCI (`e2e4` king, `d2d4` queen, anything else flank). */
+export function labelOfUci(uci: string): OpeningLabel {
+  return uci === 'e2e4' ? 'king' : uci === 'd2d4' ? 'queen' : 'flank';
+}
+
+/** `classifyOpening` for a line in UCI from the initial position; null if a move is illegal. */
+export function classifyOpeningUci(ucis: readonly string[]): OpeningClassification | null {
+  const played = playLine(INITIAL_FEN, ucis);
+  return played ? classifyOpening(played.san) : null;
 }
 
 /** Classification from the label and the named positions of a line (in ply order). */

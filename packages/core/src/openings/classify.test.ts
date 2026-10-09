@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadOpenings } from './data';
-import { classifyOpening } from './resolve';
+import { classifyOpening, classifyOpeningUci, labelOfUci } from './resolve';
 
 // Expected names and ECO codes are copied from data/openings/*.tsv, not from memory.
 
@@ -103,5 +103,26 @@ describe('classifyOpening', () => {
     const c = classifyOpening(san('1. e4 e5 2. Nf3 Nc6 3. Bb5 Qe7 4. Kf1'));
     expect(c.opening?.name).toBe('Ruy Lopez');
     expect(c.ply).toBeLessThan(8);
+  });
+});
+
+describe('classifyOpeningUci', () => {
+  beforeAll(() => loadOpenings());
+
+  it('classifies a line given in UCI like the same line in SAN', () => {
+    const ucis = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1b5'];
+    expect(classifyOpeningUci(ucis)).toEqual(classifyOpening(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5']));
+  });
+
+  it('returns null for an illegal line', () => {
+    expect(classifyOpeningUci(['e2e5'])).toBeNull();
+  });
+
+  it('labels the first move', () => {
+    expect([labelOfUci('e2e4'), labelOfUci('d2d4'), labelOfUci('c2c4')]).toEqual([
+      'king',
+      'queen',
+      'flank',
+    ]);
   });
 });

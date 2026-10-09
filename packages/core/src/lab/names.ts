@@ -1,6 +1,7 @@
 import { openingIndex } from '../openings/data';
 import type { OpeningGraph } from '../openings/graph';
-import { OpeningsNotLoadedError } from '../openings/resolve';
+import { OpeningsNotLoadedError, labelOfUci } from '../openings/resolve';
+import type { OpeningLabel } from '../openings/types';
 
 /** "Family: Variation, Subvariation" → ["Family", "Variation", "Subvariation"]. */
 export function nameSegments(name: string): string[] {
@@ -44,6 +45,8 @@ export interface NameNode {
   lines: number;
   /** Whose opening it is: the side that plays its defining (last) move. */
   side: 'w' | 'b' | null;
+  /** Style of its first move: 1.e4 king, 1.d4 queen, anything else flank (ADR 012). */
+  style: OpeningLabel | null;
 }
 
 /** Side that played the last of `ucis` from the initial position (null when empty). */
@@ -86,6 +89,7 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
         ucis: [],
         lines: 0,
         side: null,
+        style: null,
       };
       nodes.set(key, n);
       parent?.children.push(key);
@@ -98,7 +102,9 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
     if (graphNode === undefined) continue;
     const n = ensure(nameSegments(name));
     const ucis = graph.pathTo(graphNode);
-    if (!n.own || ucis.length < n.ucis.length) {
+    // a one-move position is a style label, not an opening (ADR 012): prefer any deeper one
+    const rank = (u: readonly string[]) => (u.length < 2 ? 1000 : 0) + u.length;
+    if (!n.own || rank(ucis) < rank(n.ucis)) {
       n.own = true;
       n.eco = eco;
       n.ucis = ucis;
@@ -106,6 +112,10 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
       n.side = moverOfLast(ucis);
     }
   }
+
+  // a level named only at one move, with variations below, is a group of them (a label)
+  for (const n of nodes.values())
+    if (n.own && n.ucis.length < 2 && n.children.length) n.own = false;
 
   // groups without a position of their own take their most used child; children sorted
   const finish = (n: NameNode): void => {
@@ -122,6 +132,7 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
       n.lines = kids[0].lines;
       n.side = kids[0].side;
     }
+    n.style = n.ucis[0] ? labelOfUci(n.ucis[0]) : null;
   };
   const roots = [...nodes.values()].filter((n) => n.parent === null);
   roots.forEach(finish);

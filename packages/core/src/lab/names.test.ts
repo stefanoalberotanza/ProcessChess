@@ -101,3 +101,37 @@ describe('opening side', () => {
     for (const n of tree.all()) expect(n.side).toBe(moverOfLast(n.ucis));
   });
 });
+
+describe('one-move names are labels, not openings (ADR 012)', () => {
+  it('a family named at 1 ply and deeper takes its deeper position', () => {
+    // data/openings: B00 "King's Pawn Game" 1. e4; C20 "King's Pawn Game" 1. e4 e5
+    expect(tree.get("King's Pawn Game")).toMatchObject({
+      own: true,
+      eco: 'C20',
+      ucis: ['e2e4', 'e7e5'],
+    });
+  });
+
+  it('a family named only at 1 ply is a group of its variations', () => {
+    // data/openings: A10 "English Opening" only at 1. c4
+    const english = tree.get('English Opening')!;
+    expect(english.own).toBe(false);
+    expect(english.ucis.length).toBeGreaterThan(1);
+  });
+
+  it('no level with sub-levels is practised as a single move', () => {
+    for (const n of tree.all())
+      if (n.children.length) expect(n.ucis.length, n.key).toBeGreaterThan(1);
+  });
+
+  it('every level has the style of its first move', () => {
+    expect(tree.get('Ruy Lopez')!.style).toBe('king');
+    expect(tree.get('Sicilian Defense')!.style).toBe('king');
+    expect(tree.get("Queen's Gambit Declined")!.style).toBe('queen');
+    expect(tree.get('English Opening')!.style).toBe('flank');
+    for (const n of tree.all()) {
+      const first = n.ucis[0];
+      expect(n.style).toBe(first === 'e2e4' ? 'king' : first === 'd2d4' ? 'queen' : 'flank');
+    }
+  });
+});
