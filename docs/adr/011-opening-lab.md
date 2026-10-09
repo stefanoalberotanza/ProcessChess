@@ -11,12 +11,21 @@ should be kept.
 
 ## Decision
 
+- **Navigation by level** (revised): a click on an opening _enters_ it — the board moves to its
+  position and the list shows the next level; ▶ practises it. The **by name** list is a
+  hierarchy built from the dataset names (`buildNameTree`: Family → Variation → Subvariation;
+  150 families, 3,280 levels, 103 of them groups without a position of their own), with a
+  breadcrumb to go back up. The level shown follows the board: it is the name of the position
+  (deepest named one on the path), so moves played on the board, the graph or the move list move
+  the level too. Because names and moves do not nest the same way (a variation can be reached
+  through moves named after another family, and a family can be a piece of another one's line),
+  the hierarchy is by name while the position decides where you are; book moves that lead into
+  another family show its full name.
 - The Openings tab lists openings to practise in two categories, each with its progress:
   - **by move**: the 8 most played book moves from the board position (with "→" to go there
     without practising);
-  - **by name**: the 10 most used named openings after the board position, ranked by the
-    dataset lines that reach them (`popularOpenings`), one per distinct practice line
-    (`practiceByName`: several names share the same first moves, the most used name is kept).
+  - **by name**: the variations of the current level (families at the start), most used first,
+    ranked by the dataset lines that reach them; 12 shown, "show all" for the rest.
     Search results can be practised as well.
 - **Practice line** (`openingLine`): the chosen moves extended with the most played book moves
   to 8 plies — the first 4 moves of each side. An opening defined by more moves (e.g. the
