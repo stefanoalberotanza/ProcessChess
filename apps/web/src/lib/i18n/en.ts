@@ -174,8 +174,6 @@ export const en = {
   'side.white': 'White opening',
   'side.black': 'Black opening',
   'side.filter': 'Openings of',
-  'style.filter': 'Openings by style',
-  'style.all': 'All styles',
   'side.all': 'All',
   'side.w': 'White',
   'side.b': 'Black',

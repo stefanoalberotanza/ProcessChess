@@ -103,7 +103,7 @@ export function classifyOpeningUci(ucis: readonly string[]): OpeningClassificati
 }
 
 /** Dataset name of the style itself: its variations belong to the label, not to an opening. */
-const LABEL_OWN_FAMILY: Record<OpeningLabel, string | null> = {
+export const LABEL_OWN_FAMILY: Record<OpeningLabel, string | null> = {
   king: "King's Pawn Game",
   queen: "Queen's Pawn Game",
   flank: null,
@@ -115,7 +115,7 @@ const MIN_VARIATIONS_FOR_OPENING = 2;
 const variationCounts = new WeakMap<object, Map<string, Set<string>>>();
 
 /** Whether the dataset has too few variations under `family` for it to be an opening. */
-function isLeafFamily(family: string): boolean {
+export function isLeafFamily(family: string): boolean {
   const index = openingIndex();
   if (!index) throw new OpeningsNotLoadedError();
   let counts = variationCounts.get(index);

@@ -46,6 +46,13 @@ name, so English Opening and Zukertort Opening stay subfamilies of the flank fam
 `reclassifyOpenings()` now revisits every standard-start collection (unchanged rows are not
 written) so that nodes stored under older rules follow the current ones.
 
+The opening lab's by-name tree (`buildNameTree`, ADR 011) follows the same model: its three
+roots are the families (`style:king|queen|flank`, named by the UI), the style's own dataset name
+is the family node itself (`nodeForName("King's Pawn Game")`), and each other dataset family
+hangs below its family as a subfamily or, with fewer than two variations, a variation. Every
+node has a `kind`; a family is not an opening, so it has no practice button. The by-style radio
+filter is gone, since the roots are the styles.
+
 Opening traps are not catalogued in the dataset, which is why some branches (1.e4 e5 2.f3) stop
 early. That is a dataset gap, not a labelling rule; a layer for traps and custom lines can be
 added later.

@@ -13,7 +13,7 @@ should be kept.
 
 - **Navigation by level** (revised): a click on an opening _enters_ it — the board moves to its
   position and the list shows the next level; ▶ practises it. The **by name** list is a
-  hierarchy built from the dataset names (`buildNameTree`: Family → Variation → Subvariation;
+  hierarchy built from the dataset names (`buildNameTree`: Family → Subfamily → Variation, see ADR 012; originally Family → Variation → Subvariation;
   150 families, 3,280 levels, 103 of them groups without a position of their own), with a
   breadcrumb to go back up. The level shown follows the board: it is the name of the position
   (deepest named one on the path), so moves played on the board, the graph or the move list move

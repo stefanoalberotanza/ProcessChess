@@ -179,8 +179,6 @@ export const it = {
   'side.white': 'Apertura del Bianco',
   'side.black': 'Apertura del Nero',
   'side.filter': 'Aperture del',
-  'style.filter': 'Aperture per stile',
-  'style.all': 'Tutti gli stili',
   'side.all': 'Tutte',
   'side.w': 'Bianco',
   'side.b': 'Nero',

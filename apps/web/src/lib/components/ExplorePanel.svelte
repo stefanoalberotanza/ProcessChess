@@ -7,10 +7,7 @@
     bookLinesFrom,
     bookMoves,
     buildNameTree,
-    joinSegments,
-    labelOfUci,
     moverOfLast,
-    nameSegments,
     openingLine,
     playLine,
     resolveOpening,
@@ -58,9 +55,6 @@
   /** Show the openings of one side only. */
   let sideFilter = $state<'all' | 'w' | 'b'>('all');
   const SIDES = ['all', 'w', 'b'] as const;
-  /** Show the openings of one style only (first move: 1.e4, 1.d4, other; ADR 012). */
-  let styleFilter = $state<'all' | 'king' | 'queen' | 'flank'>('all');
-  const STYLES = ['all', 'king', 'queen', 'flank'] as const;
 
   const names = $derived<NameTree | null>(graph ? buildNameTree(graph) : null);
   const san = $derived(playLine(INITIAL_FEN, ucis)?.san ?? []);
@@ -75,18 +69,24 @@
     const named = graph && ucis.length ? resolveOpening(san) : null;
     return named ? (names.nodeForName(named.name) ?? null) : null;
   });
-  const crumbs = $derived(
-    focus
-      ? nameSegments(focus.key).map((_, i, all) => names!.get(joinSegments(all.slice(0, i + 1)))!)
-      : [],
-  );
+  // family › subfamily › variation › …, walking up the parents
+  const crumbs = $derived.by(() => {
+    const chain: NameNode[] = [];
+    for (let n = focus; n; n = n.parent ? (names!.get(n.parent) ?? null) : null) chain.unshift(n);
+    return chain;
+  });
+  // families are not an opening of either side: the side filter applies below them
   const levelKeys = $derived(
     (focus ? focus.children : (names?.roots ?? [])).filter(
       (k) =>
-        (sideFilter === 'all' || names!.get(k)!.side === sideFilter) &&
-        (styleFilter === 'all' || names!.get(k)!.style === styleFilter),
+        sideFilter === 'all' ||
+        names!.get(k)!.kind === 'family' ||
+        names!.get(k)!.side === sideFilter,
     ),
   );
+  /** Families are named by the UI ("King's Pawn Games"), the others by the dataset. */
+  const labelOf = (n: NameNode) => (n.kind === 'family' ? t(`opening.label.${n.style!}`) : n.label);
+  const nameOf = (n: NameNode) => (n.kind === 'family' ? labelOf(n) : n.key);
   const level = $derived(
     (showAll ? levelKeys : levelKeys.slice(0, LEVEL_SIZE)).map((k) => names!.get(k)!),
   );
@@ -111,9 +111,6 @@
     graph && query.trim().length >= 2
       ? searchOpenings(graph, query, 60)
           .filter((r) => sideFilter === 'all' || moverOfLast(r.uci) === sideFilter)
-          .filter(
-            (r) => styleFilter === 'all' || (r.uci[0] && labelOfUci(r.uci[0])) === styleFilter,
-          )
           .slice(0, 12)
       : [],
   );
@@ -218,18 +215,6 @@
         {/each}
       </div>
     </div>
-    <div class="filter style" role="radiogroup" aria-label={t('style.filter')}>
-      {#each STYLES as v (v)}
-        <button
-          type="button"
-          role="radio"
-          aria-checked={styleFilter === v}
-          onclick={() => (styleFilter = v)}
-        >
-          {v === 'all' ? t('style.all') : t(`opening.label.${v}`)}
-        </button>
-      {/each}
-    </div>
     <nav class="crumbs" aria-label={t('lab.levels')}>
       <button type="button" onclick={() => enter(null)} aria-current={!focus ? 'true' : undefined}
         >{t('lab.all')}</button
@@ -239,7 +224,7 @@
         <button
           type="button"
           onclick={() => enter(c)}
-          aria-current={c.key === focus?.key ? 'true' : undefined}>{c.label}</button
+          aria-current={c.key === focus?.key ? 'true' : undefined}>{labelOf(c)}</button
         >
       {/each}
     </nav>
@@ -247,20 +232,25 @@
     {#if focus && focusItem}
       <div class="focus" data-testid="lab-focus">
         <div class="focus-head">
-          <SideMark side={focus.side} />
+          <span class="tag" data-kind={focus.kind}>{t(`opening.level.${focus.kind}`)}</span>
+          {#if focus.kind !== 'family'}<SideMark side={focus.side} />{/if}
           <span class="eco">{focus.eco}</span>
-          <span class="focus-name">{focus.label}</span>
-          <Mastery summary={summaries.get(lineKey(focusItem.line))} />
+          <span class="focus-name">{labelOf(focus)}</span>
+          {#if focus.kind !== 'family'}
+            <Mastery summary={summaries.get(lineKey(focusItem.line))} />
+          {/if}
         </div>
-        <p class="line">{sanLine(focusItem.line)}</p>
-        <button
-          type="button"
-          class="primary"
-          onclick={() => onpractice([focusItem], 0)}
-          aria-label={t('lab.practise', { name: focus.key })}
-        >
-          ▶ {t('lab.practiseThis')}
-        </button>
+        <p class="line">{sanLine(focus.kind === 'family' ? focus.ucis : focusItem.line)}</p>
+        {#if focus.kind !== 'family'}
+          <button
+            type="button"
+            class="primary"
+            onclick={() => onpractice([focusItem], 0)}
+            aria-label={t('lab.practise', { name: focus.key })}
+          >
+            ▶ {t('lab.practiseThis')}
+          </button>
+        {/if}
       </div>
     {/if}
 
@@ -271,7 +261,7 @@
     {:else}
       <ul
         class="list"
-        aria-label={focus ? t('lab.variationsOf', { name: focus.label }) : t('lab.families')}
+        aria-label={focus ? t('lab.variationsOf', { name: labelOf(focus) }) : t('lab.families')}
       >
         {#each level as n, i (n.key)}
           <li class="row">
@@ -279,24 +269,28 @@
               type="button"
               class="enter"
               onclick={() => enter(n)}
-              aria-label={t('lab.enter', { name: n.key })}
+              aria-label={t('lab.enter', { name: nameOf(n) })}
             >
-              <SideMark side={n.side} />
+              <span class="tag" data-kind={n.kind}>{t(`opening.level.${n.kind}`)}</span>
+              {#if n.kind !== 'family'}<SideMark side={n.side} />{/if}
               <span class="eco">{n.eco}</span>
-              <span class="label">{n.label}</span>
+              <span class="label">{labelOf(n)}</span>
+              {#if n.kind === 'family'}<span class="line-hint">{sanLine(n.ucis)}</span>{/if}
               {#if n.children.length}<span
                   class="sub"
                   title={t('lab.sublevels', { n: n.children.length })}>{n.children.length} ›</span
                 >{/if}
             </button>
-            <Mastery summary={summaries.get(lineKey(levelItems[i]!.line))} />
-            <button
-              type="button"
-              class="play"
-              onclick={() => onpractice(levelItems, i)}
-              aria-label={t('lab.practise', { name: n.key })}
-              title={t('lab.practise', { name: n.key })}>▶</button
-            >
+            {#if n.kind !== 'family'}
+              <Mastery summary={summaries.get(lineKey(levelItems[i]!.line))} />
+              <button
+                type="button"
+                class="play"
+                onclick={() => onpractice(levelItems, i)}
+                aria-label={t('lab.practise', { name: n.key })}
+                title={t('lab.practise', { name: n.key })}>▶</button
+              >
+            {/if}
           </li>
         {/each}
       </ul>
@@ -395,8 +389,19 @@
     padding: 0.2rem 0.55rem;
     font-size: 0.8rem;
   }
-  .filter.style {
-    margin-bottom: 0.4rem;
+  .tag {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 0 0.3rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .line-hint {
+    color: var(--muted);
+    font-size: 0.85rem;
   }
   .filter button + button {
     border-left: 1px solid var(--border);

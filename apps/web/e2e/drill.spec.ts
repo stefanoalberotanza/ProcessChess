@@ -21,6 +21,15 @@ async function ready(page: Page) {
   await expect(page.getByTestId('not-persistent')).toHaveCount(0);
 }
 
+/** Enters a family of the opening lab (the roots of the by-name list); returns its list. */
+async function enterFamily(page: Page, name = "King's Pawn Games"): Promise<Locator> {
+  await page
+    .getByRole('list', { name: 'Opening families' })
+    .getByRole('button', { name: `Open ${name}`, exact: true })
+    .click();
+  return page.getByRole('list', { name: `Variations of ${name}` });
+}
+
 /** Opens the import dialog with the visible "Import PGN" button. */
 async function openImport(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: /import pgn/i }).click();
@@ -267,9 +276,9 @@ test('opening lab: practise by name, rebuild the moves, history per opening and 
   page,
 }) => {
   await ready(page);
-  // the first level lists the opening families; a click enters a family
-  const families = page.getByRole('list', { name: 'Opening families' });
-  const firstFamily = families.getByRole('button', { name: /^Open / }).first();
+  // the first level lists the three families; inside one, a click enters a subfamily
+  const inFamily = await enterFamily(page);
+  const firstFamily = inFamily.getByRole('button', { name: /^Open / }).first();
   const family = ((await firstFamily.getAttribute('aria-label')) ?? '').replace(/^Open /, '');
   await firstFamily.click();
   const focusCard = page.getByTestId('lab-focus');
@@ -316,8 +325,7 @@ test('opening lab: practise by name, rebuild the moves, history per opening and 
   await page.getByRole('button', { name: 'Back to the list' }).click();
   await expect(focusCard.getByTestId('mastery')).toHaveAccessibleName(/Automatic/);
   await page.reload();
-  const familyRow = page
-    .getByRole('list', { name: 'Opening families' })
+  const familyRow = (await enterFamily(page))
     .getByRole('listitem')
     .filter({ has: page.getByRole('button', { name: `Open ${family}`, exact: true }) });
   await expect(familyRow.getByTestId('mastery')).toHaveAccessibleName(/Automatic/);
@@ -330,6 +338,7 @@ test('opening lab: practise by name, rebuild the moves, history per opening and 
 test('opening lab: levels follow the board, by name and by move', async ({ page }) => {
   await ready(page);
   const levels = page.getByRole('navigation', { name: 'Opening levels' });
+  await enterFamily(page);
   await page.getByRole('button', { name: 'Open Sicilian Defense', exact: true }).click();
   await expect(page.getByTestId('opening-bar')).toContainText('Sicilian Defense');
   await page
@@ -348,26 +357,37 @@ test('opening lab: levels follow the board, by name and by move', async ({ page 
   await expect(page.getByTestId('opening-bar')).toContainText('Starting position');
 });
 
-test('opening lab: families filtered by style, one-move names are not openings', async ({
+test('opening lab: family > subfamily > variation, one-move names are not openings', async ({
   page,
 }) => {
   await ready(page);
-  const styles = page.getByRole('radiogroup', { name: 'Openings by style' });
   const families = page.getByRole('list', { name: 'Opening families' });
-  await styles.getByRole('radio', { name: "Queen's Pawn Games" }).click();
+  const levels = page.getByRole('navigation', { name: 'Opening levels' });
+  // the roots are the three families; the style's own name is not an opening
   await expect(
-    families.getByRole('button', { name: "Open Queen's Gambit Declined", exact: true }),
+    families.getByRole('button', { name: "Open King's Pawn Games", exact: true }),
   ).toBeVisible();
   await expect(
-    families.getByRole('button', { name: 'Open Sicilian Defense', exact: true }),
+    families.getByRole('button', { name: "Open Queen's Pawn Games", exact: true }),
+  ).toBeVisible();
+  await expect(
+    families.getByRole('button', { name: "Open King's Pawn Game", exact: true }),
   ).toHaveCount(0);
-  await styles.getByRole('radio', { name: "King's Pawn Games" }).click();
+  await families.getByRole('button', { name: "Open King's Pawn Games", exact: true }).click();
+  await expect(page.getByTestId('lab-focus')).toContainText('Family');
+  await expect(page.getByRole('button', { name: 'Practise this opening' })).toHaveCount(0);
+  // inside: subfamilies and variations side by side
+  const inside = page.getByRole('list', { name: "Variations of King's Pawn Games" });
   await expect(
-    families.getByRole('button', { name: 'Open Sicilian Defense', exact: true }),
-  ).toBeVisible();
-  // King's Pawn Game is entered at 1.e4 e5 (C20), not at the one-move 1.e4
-  await families.getByRole('button', { name: "Open King's Pawn Game", exact: true }).click();
-  await expect(page.getByTestId('lab-focus')).toContainText('C20');
+    inside.getByRole('button', { name: 'Open Sicilian Defense', exact: true }),
+  ).toContainText('Subfamily');
+  await page.getByRole('button', { name: /^Show all/ }).click();
+  await expect(
+    inside.getByRole('button', { name: "Open King's Pawn Game: King's Head Opening", exact: true }),
+  ).toContainText('Variation');
+  // the breadcrumb goes back to the family level
+  await inside.getByRole('button', { name: 'Open Sicilian Defense', exact: true }).click();
+  await expect(levels).toContainText("King's Pawn Games");
 });
 
 test('opening lab: practise by move from the board position', async ({ page }) => {
@@ -402,7 +422,7 @@ test('opening lab: White and Black openings are marked, filtered and practised f
   page,
 }) => {
   await ready(page);
-  const families = page.getByRole('list', { name: 'Opening families' });
+  const families = await enterFamily(page);
   // data/openings: "Sicilian Defense" is 1.e4 c5 (Black), "Italian Game" ends with 3.Bc4 (White)
   const row = (name: string) =>
     families
@@ -443,6 +463,7 @@ test('"out of theory" only appears off the book, not on unnamed book positions',
 }) => {
   await ready(page);
   // Indian Defense practice line: its middle positions are on book lines but have no name
+  await enterFamily(page, "Queen's Pawn Games");
   await page.getByRole('button', { name: 'Open Indian Defense', exact: true }).click();
   const focusCard = page.getByTestId('lab-focus');
   const sans = ((await focusCard.locator('.line').textContent()) ?? '')
