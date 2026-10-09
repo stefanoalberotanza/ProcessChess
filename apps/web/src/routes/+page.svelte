@@ -29,12 +29,14 @@
   import { app, storage } from '$lib/app.svelte';
   import DrillPanel from '$lib/components/DrillPanel.svelte';
   import ExplorePanel from '$lib/components/ExplorePanel.svelte';
+  import LabPanel from '$lib/components/LabPanel.svelte';
   import GraphPanel from '$lib/components/GraphPanel.svelte';
   import ImportForm from '$lib/components/ImportForm.svelte';
   import OpeningBar from '$lib/components/OpeningBar.svelte';
   import RepertoireList, { type RepertoireRow } from '$lib/components/RepertoireList.svelte';
   import RepertoirePanel from '$lib/components/RepertoirePanel.svelte';
   import { DrillController } from '$lib/drill.svelte';
+  import { LabController, edgeKey } from '$lib/lab.svelte';
   import { t } from '$lib/i18n/index.svelte';
 
   type Tab = 'explore' | 'graph' | 'repertoire' | 'train';
@@ -59,6 +61,7 @@
   let dialog: HTMLDialogElement;
   let importOpen = $state(false);
   const ctl = new DrillController();
+  const lab = new LabController();
 
   const selected = $derived<Collection | null>(
     rows.find((r) => r.collection.id === selectedId)?.collection ?? null,
@@ -69,6 +72,9 @@
   const repAt = $derived(tree ? nodeAtPath(tree, ucis) : null);
   const inRepertoire = $derived(!!repAt && repAt.depth === ucis.length);
   const training = $derived(tab === 'train' && ctl.active);
+  const labbing = $derived(tab === 'explore' && lab.active);
+  /** The session that owns the board, if any: line drill/review or opening lab. */
+  const session = $derived(training ? ctl : labbing ? lab : null);
   const repertoireMoves = $derived(
     tree && repAt && inRepertoire ? childrenOf(tree, repAt.nodeId).map((n) => n.uci!) : [],
   );
@@ -98,6 +104,7 @@
     if (!app.ready || started) return;
     started = true;
     void loadOpeningGraph().then((g) => (graph = g));
+    void lab.refresh();
     void refresh().then(() => {
       const c = initialParams.get('c');
       if (c && rows.some((r) => r.collection.id === c)) {
@@ -197,14 +204,14 @@
   }
 
   function onboardmove(uci: string): boolean {
-    return training ? ctl.play(uci) : playFree(uci);
+    return session ? session.play(uci) : playFree(uci);
   }
 
   function submitSan(e: SubmitEvent) {
     e.preventDefault();
     sanError = null;
-    const fen = training ? ctl.fen : line.fen;
-    if (!fen || (training && !ctl.awaitingMove)) return;
+    const fen = session ? session.fen : line.fen;
+    if (!fen || (session && !session.awaitingMove)) return;
     const uci = sanToUci(fen, sanInput);
     if (!uci) {
       sanError = t('drill.sanInvalid', { san: sanInput });
@@ -344,6 +351,10 @@
     // leaving the training tab ends the session
     if (tab !== 'train' && ctl.active) void stopTraining();
   });
+  $effect(() => {
+    // leaving the openings tab ends the lab session
+    if (tab !== 'explore' && lab.active) lab.stop();
+  });
   // a completed pass changes the clean counts in the list
   let passesSeen = 0;
   $effect(() => {
@@ -376,10 +387,10 @@
       e.metaKey
     )
       return;
-    if (training) {
-      if (e.key === 'h' || e.key === 'H') ctl.askHint();
-      else if (e.key === 'r' || e.key === 'R') ctl.repeat();
-      else if (e.key === ' ') ctl.next();
+    if (session) {
+      if (e.key === 'h' || e.key === 'H') session.askHint();
+      else if (e.key === 'r' || e.key === 'R') session.repeat();
+      else if (e.key === ' ') void session.next();
       else return;
     } else if (e.key === 'ArrowLeft') back();
     else if (e.key === 'ArrowRight') forward();
@@ -388,18 +399,35 @@
   }
 
   // ---- board props -----------------------------------------------------------------------
-  const boardFen = $derived(training ? (ctl.fen ?? line.fen) : line.fen);
+  const boardFen = $derived(session ? (session.fen ?? line.fen) : line.fen);
   const lastMove = $derived.by((): [string, string] | undefined => {
-    if (training) return ctl.lastMove;
+    if (session) return session.lastMove;
     const last = ucis.at(-1);
     if (!last) return undefined;
     const { from, to } = parseUci(last);
     return [from, to];
   });
-  const barMoves = $derived(standardStart ? (training ? ctl.movesSan : line.san) : null);
-  const outOfRepertoire = $derived(
-    training ? (ctl.drill?.phase === 'retry' ? ctl.wrongSan : null) : offRepertoireSan,
+  const barMoves = $derived(
+    labbing ? lab.sansPlayed : standardStart ? (training ? ctl.movesSan : line.san) : null,
   );
+  const outOfRepertoire = $derived(
+    training
+      ? ctl.drill?.phase === 'retry'
+        ? ctl.wrongSan
+        : null
+      : labbing
+        ? null
+        : offRepertoireSan,
+  );
+  const outOfLine = $derived(labbing && lab.recall?.phase === 'retry' ? lab.wrongSan : null);
+  /** Graph colouring from the lab history of each edge. */
+  function edgeState(fen: string, uci: string): 'good' | 'bad' | null {
+    const s = lab.edgeStats.get(edgeKey(fen, uci));
+    if (!s) return null;
+    if (s.recent.at(-1) === 'wrong') return 'bad';
+    const last3 = s.recent.slice(-3);
+    return last3.length === 3 && last3.every((r) => r === 'correct') ? 'good' : null;
+  }
   const breadcrumb = $derived(
     line.san.map((san, i) => ({ i, label: i % 2 === 0 ? `${i / 2 + 1}. ${san}` : san })),
   );
@@ -427,18 +455,18 @@
   </aside>
 
   <section class="center" aria-label={t('board.label')}>
-    <OpeningBar movesSan={barMoves} {outOfRepertoire} />
+    <OpeningBar movesSan={barMoves} {outOfRepertoire} {outOfLine} />
     <Board
       maxSize={tab === 'graph' ? 380 : 520}
       fen={boardFen}
       orientation={selected?.userColor === 'b' ? 'black' : 'white'}
-      interactive={training ? ctl.awaitingMove : true}
+      interactive={session ? session.awaitingMove : true}
       {lastMove}
-      shapes={training ? ctl.shapes : []}
+      shapes={session ? session.shapes : []}
       onmove={onboardmove}
     />
     <div class="under">
-      {#if !training}
+      {#if !session}
         <div class="nav">
           <button
             type="button"
@@ -466,13 +494,15 @@
           autocapitalize="off"
           spellcheck="false"
           bind:value={sanInput}
-          disabled={training && !ctl.awaitingMove}
+          disabled={!!session && !session.awaitingMove}
         />
-        <button type="submit" disabled={training && !ctl.awaitingMove}>{t('drill.play')}</button>
+        <button type="submit" disabled={!!session && !session.awaitingMove}
+          >{t('drill.play')}</button
+        >
         {#if sanError}<span class="error" role="alert">{sanError}</span>{/if}
       </form>
     </div>
-    {#if !training}
+    {#if !session}
       <ol class="breadcrumb" aria-label={t('nav.moves')}>
         {#each breadcrumb as b (b.i)}
           <li>
@@ -519,13 +549,17 @@
       {/each}
     </div>
     <div class="tabpanel" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-      {#if tab === 'explore'}
+      {#if tab === 'explore' && lab.active}
+        <LabPanel {lab} onstop={() => lab.stop()} />
+      {:else if tab === 'explore'}
         <ExplorePanel
           {graph}
           fen={line.fen}
+          {ucis}
           {repertoireMoves}
           userColor={standardStart ? (selected?.userColor ?? null) : null}
-          onplay={(u) => playFree(u)}
+          summaries={lab.summaries}
+          onpractice={(queue, i) => void lab.start(queue, i)}
           onjump={(u) => goTo(u)}
           onaddbook={(lines) => void addBook(lines)}
         />
@@ -535,6 +569,7 @@
           {ucis}
           orientation={selected?.userColor === 'b' ? 'black' : 'white'}
           inRepertoire={(path) => !!tree && nodeAtPath(tree, path).depth === path.length}
+          {edgeState}
           onjump={(u) => goTo(u)}
         />
       {:else if !selected || !tree}

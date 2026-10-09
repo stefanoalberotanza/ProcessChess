@@ -8,8 +8,10 @@
     movesSan: string[] | null;
     /** SAN of a move just played that is not in the repertoire. */
     outOfRepertoire?: string | null;
+    /** Lab: SAN of a move just played that is not the opening's move. */
+    outOfLine?: string | null;
   }
-  let { movesSan, outOfRepertoire = null }: Props = $props();
+  let { movesSan, outOfRepertoire = null, outOfLine = null }: Props = $props();
 
   // the openings dataset is loaded with the app (app.ready)
   const opening = $derived(app.ready && movesSan ? resolveOpening(movesSan) : null);
@@ -30,6 +32,11 @@
   {/if}
   {#if outOfTheory}
     <span class="badge theory" title={t('opening.outOfTheoryHelp')}>{t('opening.outOfTheory')}</span
+    >
+  {/if}
+  {#if outOfLine}
+    <span class="badge repertoire" data-testid="out-of-line"
+      >{t('lab.outOfLine', { san: outOfLine })}</span
     >
   {/if}
   {#if outOfRepertoire}

@@ -11,8 +11,10 @@
     /** True when this path is in the selected repertoire. */
     inRepertoire: (ucis: string[]) => boolean;
     onjump: (ucis: string[]) => void;
+    /** Lab history of a move: 'good' when automatic lately, 'bad' after a recent mistake. */
+    edgeState?: (fenBefore: string, uci: string) => 'good' | 'bad' | null;
   }
-  let { graph, ucis, orientation, inRepertoire, onjump }: Props = $props();
+  let { graph, ucis, orientation, inRepertoire, onjump, edgeState = () => null }: Props = $props();
 
   const BOARD = 84;
   const COL = 150;
@@ -88,6 +90,8 @@
           <path
             d={edgePath(from, to)}
             class:rep={inRepertoire(to.ucis)}
+            class:good={edgeState(from.fen, e.uci) === 'good'}
+            class:bad={edgeState(from.fen, e.uci) === 'bad'}
             class:past={to.kind !== 'book'}
             stroke-width={strokeWidth(e.lines)}
           />
@@ -151,6 +155,14 @@
   }
   .edges path.rep {
     stroke: #2e7d32;
+  }
+  .edges path.good {
+    stroke: #2e7d32;
+    stroke-dasharray: none;
+  }
+  .edges path.bad {
+    stroke: #c62828;
+    stroke-dasharray: none;
   }
   .nodes {
     list-style: none;
