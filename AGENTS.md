@@ -34,8 +34,9 @@ apps/web/                     SvelteKit app (@processchess/web)
   src/lib/Board.svelte        the only chessground import (promotion picker, arrows)
   src/lib/app.svelte.ts       bootstrap: OPFS storage, migrations, openings dataset
   src/lib/drill.svelte.ts     DrillController: drill UI state + attempt logging
+  src/lib/lab.svelte.ts       LabController: opening lab sessions + lab history
   src/lib/i18n/               en.ts (keys), it.ts, t()
-  src/lib/components/         RepertoireList, ExplorePanel, GraphPanel, MiniBoard,
+  src/lib/components/         RepertoireList, ExplorePanel, LabPanel, Mastery, GraphPanel, MiniBoard,
                               RepertoirePanel, DrillPanel, OpeningBar, MoveTree, MoveHistory,
                               ImportForm
   src/routes/+page.svelte     the workspace (?c=<collection>&tab=explore|graph|repertoire|train)
@@ -49,6 +50,7 @@ packages/core/                @processchess/core — pure logic, no UI, no I/O
   src/tree/                   move tree: addLine, setMainLine, setComment, deleteSubtree, layout
   src/pgn/                    parsePgn, importPgn/treeFromPgn, exportPgn
   src/drill/                  line drill and review drill engine
+  src/lab/                    opening lab: popular openings, practice lines, recall sessions
   src/srs/                    FSRS cards (ts-fsrs), due moves and counts, daily stats helpers
   src/position.ts             legal moves, SAN↔UCI for the UI
   test/fixtures/              PGN fixtures
@@ -93,7 +95,7 @@ push; CI runs the same. Locally Playwright uses the Chromium in `PLAYWRIGHT_BROW
   from a chess.js FEN (en passant square only when a capture is legal).
 - Moves are stored as UCI; SAN is derived with chess.js.
 - IDs are ULIDs; timestamps are Unix milliseconds.
-- `attempt` and `line_pass` are append-only: never update or delete rows. `card` and
+- `attempt`, `line_pass`, `lab_attempt` and `lab_run` are append-only: never update or delete rows. `card` and
   `daily_stat` are derived from `attempt` (written in the same transaction, rebuildable).
 - Collections are archived, never deleted.
 - Every UI string goes through `t()`; add keys to `en.ts` and `it.ts` together.
