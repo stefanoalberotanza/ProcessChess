@@ -3,7 +3,7 @@ import { toEpd } from '../fen';
 import { loadOpenings, openingIndex } from '../openings/data';
 import { type OpeningGraph, loadOpeningGraph } from '../openings/graph';
 import { INITIAL_FEN, playLine } from '../position';
-import { openingLine, popularOpenings } from './lab';
+import { openingLine, popularOpenings, practiceByName } from './lab';
 
 let graph: OpeningGraph;
 beforeAll(async () => {
@@ -70,5 +70,18 @@ describe('openingLine', () => {
 
   it('stops where the book ends', () => {
     expect(openingLine(graph, ['h2h4', 'h7h5', 'h1h3'])).toEqual(['h2h4', 'h7h5', 'h1h3']);
+  });
+});
+
+describe('practiceByName', () => {
+  it('gives distinct practice lines, named after the most used opening on each', () => {
+    const items = practiceByName(graph, { limit: 10 });
+    expect(items).toHaveLength(10);
+    const keys = items.map((i) => i.line.join(' '));
+    expect(new Set(keys).size).toBe(10);
+    const popular = popularOpenings(graph, { limit: 1 })[0]!;
+    expect(items[0]).toMatchObject({ eco: popular.eco, name: popular.name });
+    expect(items[0]!.line).toEqual(openingLine(graph, popular.ucis));
+    for (const i of items) expect(i.line.length).toBeGreaterThanOrEqual(8);
   });
 });

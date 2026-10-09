@@ -64,3 +64,36 @@ export function openingLine(
   }
   return line;
 }
+
+export interface PracticeItem {
+  eco: string;
+  name: string;
+  /** The practised line (see `openingLine`). */
+  line: string[];
+  lines: number;
+}
+
+/**
+ * The most used named openings as practice items, one per distinct practice line (several names
+ * can share the same first moves: the most used name is kept). Needs `loadOpenings()`.
+ */
+export function practiceByName(
+  graph: OpeningGraph,
+  opts: { under?: readonly string[]; limit?: number } = {},
+): PracticeItem[] {
+  const limit = opts.limit ?? 10;
+  const seen = new Set<string>();
+  const items: PracticeItem[] = [];
+  for (const o of popularOpenings(graph, {
+    ...(opts.under ? { under: opts.under } : {}),
+    limit: Infinity,
+  })) {
+    const line = openingLine(graph, o.ucis);
+    const key = line.join(' ');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push({ eco: o.eco, name: o.name, line, lines: o.lines });
+    if (items.length >= limit) break;
+  }
+  return items;
+}
