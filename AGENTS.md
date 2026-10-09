@@ -45,9 +45,10 @@ apps/web/                     SvelteKit app (@processchess/web)
   src/service-worker.ts       offline precache
   e2e/                        Playwright tests; scripts/serve-build.js serves build/
 packages/core/                @processchess/core — pure logic, no UI, no I/O
-  src/openings/               resolveOpening(), loadOpenings(), opening graph (book moves,
-                              book lines, search, graphView layout); generated openings.json,
-                              opening-graph.json
+  src/openings/               classifyOpening()/classifyTree() (label › opening › variation,
+                              ADR 012), resolveOpening(), loadOpenings(), opening graph (book
+                              moves, book lines, search, graphView layout); generated
+                              openings.json, opening-graph.json
   src/tree/                   move tree: addLine, setMainLine, setComment, deleteSubtree, layout
   src/pgn/                    parsePgn, importPgn/treeFromPgn, exportPgn
   src/drill/                  line drill and review drill engine

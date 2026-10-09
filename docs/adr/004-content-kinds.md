@@ -22,9 +22,9 @@ They differ in where they start and in what counts as a right answer.
     Used by openings, games, mates and patterns.
   - **`result`**: any move that preserves the theoretical result (win/draw) is accepted,
     checked with an endgame **tablebase**. Used by endgames. **Not implemented yet.**
-- Opening classification (`opening_eco`, `opening_name`) is optional metadata on nodes,
-  computed with `resolveOpening` (only meaningful from the standard start position). In M1 the
-  UI computes it on the fly and the columns stay empty.
+- Opening classification (`opening_label`, `opening_name`, `opening_variation`, `opening_eco`)
+  is metadata on nodes, computed with `classifyTree` (only meaningful from the standard start
+  position) and written by the Storage; see ADR 012.
 - M1 imports every PGN as an `opening` collection with `eval_mode = 'exact'`; a FEN header is
   honoured as `start_fen`, but drills from arbitrary positions are M3.
 
