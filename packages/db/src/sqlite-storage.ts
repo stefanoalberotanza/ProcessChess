@@ -114,10 +114,11 @@ export class SqliteStorage implements Storage {
    * Writes the opening classification of every node of a collection (core `classifyTree`),
    * touching only rows that changed. No-op until the openings dataset is loaded.
    */
-  private async classifyNodes(tx: Tx, collectionId: string, tree: Tree) {
-    if (!isOpeningsLoaded()) return;
+  private async classifyNodes(tx: Tx, collectionId: string, tree: Tree): Promise<number> {
+    if (!isOpeningsLoaded()) return 0;
     const classes = classifyTree(tree);
-    if (classes.size === 0) return;
+    if (classes.size === 0) return 0;
+    let changed = 0;
     const stored = await tx
       .select({
         id: schema.node.id,
@@ -146,7 +147,9 @@ export class SqliteStorage implements Storage {
         continue;
       }
       await tx.update(schema.node).set(next).where(eq(schema.node.id, row.id));
+      changed++;
     }
+    return changed;
   }
 
   async migrate() {
@@ -575,21 +578,21 @@ export class SqliteStorage implements Storage {
 
   async reclassifyOpenings() {
     if (!isOpeningsLoaded()) return 0;
-    const pending = await this.db
+    // Every standard-start collection, not only unclassified ones: a change of the classification
+    // rules must reach nodes stored earlier. Unchanged rows are not written.
+    const all = await this.db
       .selectDistinct({ id: schema.node.collectionId })
       .from(schema.node)
       .innerJoin(schema.collection, eq(schema.collection.id, schema.node.collectionId))
-      .where(
-        and(
-          eq(schema.collection.startFen, INITIAL_FEN),
-          isNotNull(schema.node.parentId),
-          isNull(schema.node.openingLabel),
-        ),
+      .where(and(eq(schema.collection.startFen, INITIAL_FEN), isNotNull(schema.node.parentId)));
+    let updated = 0;
+    for (const { id } of all) {
+      const changed = await this.tx(async (tx) =>
+        this.classifyNodes(tx, id, await this.loadTreeIn(tx, id)),
       );
-    for (const { id } of pending) {
-      await this.tx(async (tx) => this.classifyNodes(tx, id, await this.loadTreeIn(tx, id)));
+      if (changed > 0) updated++;
     }
-    return pending.length;
+    return updated;
   }
 
   async openingStats(query: OpeningStatsQuery): Promise<OpeningStatsRow[]> {

@@ -106,6 +106,53 @@ describe('classifyOpening', () => {
   });
 });
 
+describe('classifyOpening: family > subfamily > variation', () => {
+  beforeAll(() => loadOpenings());
+
+  it("a variation of the family's own name belongs to the family, with no opening (King's Head)", () => {
+    // C20 King's Pawn Game: King's Head Opening: 1. e4 e5 2. f3
+    expect(classifyOpening(san('1. e4 e5 2. f3'))).toEqual({
+      label: 'king',
+      opening: null,
+      variation: { eco: 'C20', name: "King's Head Opening", ply: 3 },
+      ply: 3,
+    });
+    // D00 Queen's Pawn Game: ... is a variation of the queen family too
+    expect(classifyOpening(san('1. d4 d5 2. Bg5'))).toMatchObject({
+      label: 'queen',
+      opening: null,
+    });
+  });
+
+  it('the bare family name leaves both opening and variation empty', () => {
+    // C20 King's Pawn Game: 1. e4 e5
+    expect(classifyOpening(san('1. e4 e5'))).toEqual({
+      label: 'king',
+      opening: null,
+      variation: null,
+      ply: 2,
+    });
+  });
+
+  it('a dataset family without branches of its own is a variation of the label', () => {
+    // C20 Bongcloud Attack: 1. e4 e5 2. Ke2 (a single row)
+    expect(classifyOpening(san('1. e4 e5 2. Ke2'))).toEqual({
+      label: 'king',
+      opening: null,
+      variation: { eco: 'C20', name: 'Bongcloud Attack', ply: 3 },
+      ply: 3,
+    });
+  });
+
+  it('a family with branches stays an opening (Italian Game, Sicilian Defense)', () => {
+    // C50 Italian Game: 1. e4 e5 2. Nf3 Nc6 3. Bc4
+    expect(classifyOpening(san('1. e4 e5 2. Nf3 Nc6 3. Bc4'))).toMatchObject({
+      opening: { eco: 'C50', name: 'Italian Game', ply: 5 },
+      variation: null,
+    });
+  });
+});
+
 describe('classifyOpeningUci', () => {
   beforeAll(() => loadOpenings());
 

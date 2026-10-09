@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { type OpeningGraph, classifyOpening, isBookPosition } from '@processchess/core';
+  import {
+    type OpeningGraph,
+    classifyOpening,
+    formatLine,
+    isBookPosition,
+  } from '@processchess/core';
   import { app } from '$lib/app.svelte';
   import { t } from '$lib/i18n/index.svelte';
 
@@ -20,7 +25,6 @@
   // the openings dataset is loaded with the app (app.ready)
   // label › opening › variation (ADR 012): one-move names are style labels, not openings
   const c = $derived(app.ready && movesSan ? classifyOpening(movesSan) : null);
-  const eco = $derived((c?.variation ?? c?.opening)?.eco ?? null);
   // Out of theory = the position is not on any book line. Not "the position has no name": book
   // lines pass through unnamed positions (e.g. halfway through the Indian Defense line).
   const outOfTheory = $derived(
@@ -30,18 +34,34 @@
 
 <div class="opening-bar" aria-live="polite" data-testid="opening-bar">
   {#if c?.label}
-    <span class="badge label" data-testid="opening-label">{t(`opening.label.${c.label}`)}</span>
+    <span class="level" data-level="family">
+      <span class="tag">{t('opening.level.family')}</span>
+      <span class="badge label" data-testid="opening-label">{t(`opening.label.${c.label}`)}</span>
+      <span class="line">{formatLine(movesSan!.slice(0, 1))}</span>
+    </span>
   {/if}
   {#if c?.opening}
-    {#if eco}<span class="eco">{eco}</span>{/if}
-    <span class="family">{c.opening.name}</span>
-    {#if c.variation}<span class="variation">› {c.variation.name}</span>{/if}
-  {:else if c?.label}
-    <!-- one-move lines: the label is all there is -->
-  {:else if movesSan === null}
-    <span class="muted">{t('opening.customStart')}</span>
-  {:else}
-    <span class="muted">{movesSan.length === 0 ? t('opening.start') : t('opening.unknown')}</span>
+    <span class="level" data-level="subfamily">
+      <span class="tag">{t('opening.level.subfamily')}</span>
+      <span class="eco">{c.opening.eco}</span>
+      <span class="family">{c.opening.name}</span>
+      <span class="line">{formatLine(movesSan!.slice(0, c.opening.ply))}</span>
+    </span>
+  {/if}
+  {#if c?.variation}
+    <span class="level" data-level="variation">
+      <span class="tag">{t('opening.level.variation')}</span>
+      <span class="eco">{c.variation.eco}</span>
+      <span class="variation">{c.variation.name}</span>
+      <span class="line">{formatLine(movesSan!.slice(0, c.variation.ply))}</span>
+    </span>
+  {/if}
+  {#if !c?.label}
+    {#if movesSan === null}
+      <span class="muted">{t('opening.customStart')}</span>
+    {:else}
+      <span class="muted">{movesSan.length === 0 ? t('opening.start') : t('opening.unknown')}</span>
+    {/if}
   {/if}
   {#if outOfTheory}
     <span class="badge theory" data-testid="out-of-theory" title={t('opening.outOfTheoryHelp')}
@@ -71,8 +91,18 @@
   .eco {
     font-weight: 700;
   }
-  .variation,
-  .muted {
+  .muted,
+  .line {
+    color: var(--muted);
+  }
+  .tag {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 0 0.3rem;
+    margin-right: 0.15rem;
     color: var(--muted);
   }
   .badge {

@@ -170,9 +170,9 @@ export interface Storage {
   rebuildDerived(): Promise<void>;
 
   /**
-   * Classifies the nodes of every standard-start collection that has unclassified moves
-   * (e.g. stored before classification existed). Requires `loadOpenings()`. Returns how many
-   * collections were updated.
+   * Re-runs the opening classification on every standard-start collection, so moves stored
+   * before classification existed or under older rules are brought up to date. Requires
+   * `loadOpenings()`. Returns how many collections had at least one node change.
    */
   reclassifyOpenings(): Promise<number>;
   /** Attempt totals grouped by opening label, opening or variation, sorted by key. */

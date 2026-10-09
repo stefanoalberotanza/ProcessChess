@@ -72,10 +72,10 @@ test('trained moves become due, are reviewed and show up in the statistics', asy
   await expect(page.getByRole('row', { name: /Italian/ })).toBeVisible();
   // by style, opening, variation (ADR 012)
   const byOpening = page.getByTestId('opening-stats');
-  await expect(byOpening.getByRole('row', { name: /King's game/ })).toBeVisible();
+  await expect(byOpening.getByRole('row', { name: /King's Pawn Games/ })).toBeVisible();
   await page
     .getByRole('radiogroup', { name: 'Group by' })
-    .getByRole('radio', { name: 'Opening' })
+    .getByRole('radio', { name: 'Subfamily' })
     .click();
   await expect(byOpening.getByRole('row', { name: /Italian Game/ })).toBeVisible();
   await expect(byOpening).not.toContainText("King's Pawn Game");

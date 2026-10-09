@@ -29,6 +29,27 @@ style the user plays, which openings and which variations they know best.
 - **ply** — deepest named ply. (The "out of theory" badge uses the opening graph instead,
   `isBookPosition`, since book lines pass through unnamed positions.)
 
+**Family, subfamily, variation (2026-10-09).** The three levels are shown as Family (the label:
+King's / Queen's Pawn Games, Flank openings), Subfamily (`opening`) and Variation, each with its
+moves. A family holds either subfamilies or variations directly, never an opening that only has
+variations:
+
+- the style's own dataset name ("King's Pawn Game", "Queen's Pawn Game") is not an opening: its
+  variations (King's Head Opening, 1.e4 e5 2.f3) are variations of the family;
+- a dataset family with fewer than two distinct variations (Bongcloud Attack) is not an opening
+  either; its full name is a variation of the family;
+- everything else keeps being a subfamily (Italian Game, Sicilian Defense).
+
+The test is on the dataset as a whole (variation counts per family are computed once when first
+needed), not on the line, so it is stable across transpositions. Flank openings have no own
+name, so English Opening and Zukertort Opening stay subfamilies of the flank family.
+`reclassifyOpenings()` now revisits every standard-start collection (unchanged rows are not
+written) so that nodes stored under older rules follow the current ones.
+
+Opening traps are not catalogued in the dataset, which is why some branches (1.e4 e5 2.f3) stop
+early. That is a dataset gap, not a labelling rule; a layer for traps and custom lines can be
+added later.
+
 Only meaningful from the standard start position. `resolveOpening` is unchanged.
 
 Persistence: `node.opening_label`, `opening_name` (family), `opening_variation`, `opening_eco`

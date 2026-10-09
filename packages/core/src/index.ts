@@ -2,6 +2,7 @@ export * from './drill';
 export * from './lab';
 export { IllegalMoveError } from './errors';
 export { toEpd } from './fen';
+export { formatLine } from './openings/format';
 export { isOpeningsLoaded, loadOpenings } from './openings/data';
 export {
   OpeningsNotLoadedError,

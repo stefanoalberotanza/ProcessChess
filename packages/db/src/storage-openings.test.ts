@@ -138,6 +138,25 @@ describe('openingStats', () => {
     expect(await nodeAt(collection.id, ['e2e4'])).toMatchObject({ openingLabel: 'king' });
     expect(await storage.reclassifyOpenings()).toBe(0);
   });
+
+  it("brings nodes classified under older rules up to date (King's Head is a family variation)", async () => {
+    // C20 King's Pawn Game: King's Head Opening: 1. e4 e5 2. f3
+    const { collection } = await importPgn('1. e4 e5 2. f3 *');
+    const ucis = ['e2e4', 'e7e5', 'f2f3'];
+    expect(await nodeAt(collection.id, ucis)).toMatchObject({
+      openingLabel: 'king',
+      openingName: null,
+      openingVariation: "King's Head Opening",
+      openingEco: 'C20',
+    });
+    // as stored before the rules changed: the style's own name was an opening
+    sqlite.exec(
+      "update node set opening_name = 'King''s Pawn Game' where opening_variation is not null",
+    );
+    expect(await storage.reclassifyOpenings()).toBe(1);
+    expect(await nodeAt(collection.id, ucis)).toMatchObject({ openingName: null });
+    expect(await storage.reclassifyOpenings()).toBe(0);
+  });
 });
 
 describe('openingStats with the opening lab', () => {
