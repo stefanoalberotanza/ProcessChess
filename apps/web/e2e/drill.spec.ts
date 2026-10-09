@@ -366,3 +366,31 @@ test('exports the FEN of the board position', async ({ page, context }) => {
     'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
   );
 });
+
+test('opening lab: White and Black openings are marked, filtered and practised from their side', async ({
+  page,
+}) => {
+  await ready(page);
+  const families = page.getByRole('list', { name: 'Opening families' });
+  // data/openings: "Sicilian Defense" is 1.e4 c5 (Black), "Italian Game" ends with 3.Bc4 (White)
+  const row = (name: string) =>
+    families
+      .getByRole('listitem')
+      .filter({ has: page.getByRole('button', { name: `Open ${name}`, exact: true }) });
+  await expect(row('Sicilian Defense').getByRole('img', { name: 'Black opening' })).toBeVisible();
+  await expect(row('Italian Game').getByRole('img', { name: 'White opening' })).toBeVisible();
+
+  await page.getByRole('radio', { name: 'Black' }).click();
+  await expect(families.locator('[data-side="w"]')).toHaveCount(0);
+  await expect(families.locator('[data-side="b"]').first()).toBeVisible();
+  await page.getByRole('radio', { name: 'White' }).click();
+  await expect(families.locator('[data-side="b"]')).toHaveCount(0);
+  await page.getByRole('radio', { name: 'All' }).click();
+
+  // practising a Black opening shows the board from Black's side
+  await page.getByRole('button', { name: 'Practise Sicilian Defense', exact: true }).click();
+  await expect(page.getByTestId('lab-progress')).toHaveText('Move 1 of 8');
+  await expect(page.locator('.cg-wrap.orientation-black')).toBeVisible();
+  await page.getByRole('button', { name: 'Back to the list' }).click();
+  await expect(page.locator('.cg-wrap.orientation-white')).toBeVisible();
+});
