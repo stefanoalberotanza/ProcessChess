@@ -87,7 +87,8 @@ test('explore the ECO graph, save a line, add the book theory and train it', asy
   // search the dataset and jump to the opening
   await page.getByRole('searchbox').fill('najdorf');
   await page
-    .getByRole('button', { name: 'Go to Sicilian Defense: Najdorf Variation without practising' })
+    .getByRole('list', { name: 'Openings found' })
+    .getByRole('button', { name: 'Open Sicilian Defense: Najdorf Variation', exact: true })
     .first() // shortest line first; the dataset has transpositions with the same name
     .click();
   const bar = page.getByTestId('opening-bar');
@@ -260,14 +261,20 @@ test('opening lab: practise by name, rebuild the moves, history per opening and 
   page,
 }) => {
   await ready(page);
-  const byName = page.getByRole('list', { name: 'Practise by name' });
-  const first = byName.getByRole('button').first();
-  await expect(first).toContainText('new');
-  const lineText = (await first.locator('.line').textContent())!.trim();
+  // the first level lists the opening families; a click enters a family
+  const families = page.getByRole('list', { name: 'Opening families' });
+  const firstFamily = families.getByRole('button', { name: /^Open / }).first();
+  const family = ((await firstFamily.getAttribute('aria-label')) ?? '').replace(/^Open /, '');
+  await firstFamily.click();
+  const focusCard = page.getByTestId('lab-focus');
+  await expect(focusCard).toContainText(family);
+  await expect(page.getByRole('navigation', { name: 'Opening levels' })).toContainText(family);
+  await expect(focusCard.getByTestId('mastery')).toHaveAccessibleName('Not practised yet');
+  const lineText = (await focusCard.locator('.line').textContent())!.trim();
   // "1.e4 e5 2.Nf3 …" → SAN moves to type
   const sans = lineText.split(' ').map((m) => m.replace(/^\d+\./, ''));
   expect(sans).toHaveLength(8);
-  await first.click();
+  await focusCard.getByRole('button', { name: `Practise ${family}` }).click();
 
   const progress = page.getByTestId('lab-progress');
   await expect(progress).toHaveText('Move 1 of 8');
@@ -299,17 +306,38 @@ test('opening lab: practise by name, rebuild the moves, history per opening and 
 
   // back in the list the opening shows as automatic, and it survives a reload
   await page.getByRole('button', { name: 'Back to the list' }).click();
-  await expect(byName.getByRole('button').first().getByTestId('mastery')).toHaveAccessibleName(
-    /Automatic/,
-  );
+  await expect(focusCard.getByTestId('mastery')).toHaveAccessibleName(/Automatic/);
   await page.reload();
-  await expect(byName.getByRole('button').first().getByTestId('mastery')).toHaveAccessibleName(
-    /Automatic/,
-  );
+  const familyRow = page
+    .getByRole('list', { name: 'Opening families' })
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('button', { name: `Open ${family}`, exact: true }) });
+  await expect(familyRow.getByTestId('mastery')).toHaveAccessibleName(/Automatic/);
 
   // the per-edge history colours the graph: the practised first move is green
   await page.getByRole('tab', { name: 'Graph' }).click();
   await expect(page.locator('.edges path.good').first()).toBeAttached();
+});
+
+test('opening lab: levels follow the board, by name and by move', async ({ page }) => {
+  await ready(page);
+  const levels = page.getByRole('navigation', { name: 'Opening levels' });
+  await page.getByRole('button', { name: 'Open Sicilian Defense', exact: true }).click();
+  await expect(page.getByTestId('opening-bar')).toContainText('Sicilian Defense');
+  await page
+    .getByRole('list', { name: 'Variations of Sicilian Defense' })
+    .getByRole('button', { name: 'Open Sicilian Defense: Najdorf Variation', exact: true })
+    .click();
+  await expect(levels).toContainText('Najdorf Variation');
+  await expect(page.getByTestId('opening-bar')).toContainText('B90');
+  // moves played on the board move the level too: back two plies → the Sicilian level
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
+  await expect(levels.locator('[aria-current="true"]')).not.toHaveText('Najdorf Variation');
+  // the breadcrumb goes back up
+  await levels.getByRole('button', { name: 'All openings' }).click();
+  await expect(page.getByRole('list', { name: 'Opening families' })).toBeVisible();
+  await expect(page.getByTestId('opening-bar')).toContainText('Starting position');
 });
 
 test('opening lab: practise by move from the board position', async ({ page }) => {
