@@ -374,7 +374,7 @@ test('opening lab: family > subfamily > variation, one-move names are not openin
     families.getByRole('button', { name: "Open King's Pawn Game", exact: true }),
   ).toHaveCount(0);
   await families.getByRole('button', { name: "Open King's Pawn Games", exact: true }).click();
-  await expect(page.getByTestId('lab-focus')).toContainText('Family');
+  await expect(page.getByTestId('lab-focus')).toContainText("King's Pawn Games");
   await expect(page.getByRole('button', { name: 'Practise this opening' })).toHaveCount(0);
   // inside: subfamilies and variations side by side
   const inside = page.getByRole('list', { name: "Variations of King's Pawn Games" });

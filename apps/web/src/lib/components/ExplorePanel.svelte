@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     INITIAL_FEN,
+    type NameKind,
     type NameNode,
     type NameTree,
     type OpeningGraph,
@@ -141,14 +142,27 @@
     graph && userColor ? bookLinesFrom(graph, fen, userColor, { maxLines: MAX_BOOK_LINES }) : [],
   );
 
-  /** A name relative to the level shown ("English Attack" inside the Najdorf). */
-  function relativeName(name: string): string {
-    if (!focus) return name;
-    if (name === focus.key) return '=';
-    for (const sep of [': ', ', ']) {
-      if (name.startsWith(focus.key + sep)) return name.slice(focus.key.length + sep.length);
+  /**
+   * A name for a list, without the reference to its family ("Leonardis Variation", not "King's
+   * Pawn Game: Leonardis Variation") and relative to the level shown ("English Attack" inside
+   * the Najdorf); "=" for the level itself. `kind` is the level of the name, shown after it.
+   */
+  function listName(name: string): { text: string; kind: NameKind | null } {
+    const node = names?.nodeForName(name);
+    if (!node) return { text: name, kind: null };
+    if (node === focus) return { text: '=', kind: null };
+    if (node.kind === 'family') return { text: labelOf(node), kind: node.kind };
+    // levels between the focus and the node, outermost first ("Najdorf Variation, English Attack")
+    const below: string[] = [];
+    let n: NameNode | undefined = node;
+    while (n && n.key !== focus?.key && n.kind !== 'family') {
+      below.unshift(n.label);
+      n = n.parent ? names!.get(n.parent) : undefined;
     }
-    return name; // another family: a transposition
+    // under the focus (or a family) the labels are enough; another branch keeps its full name
+    const inside = n && (n.key === focus?.key || n.kind === 'family');
+    const text = inside && (focus || node.depth === 1) ? below.join(', ') : node.key;
+    return { text, kind: node.kind };
   }
 
   function sanLine(line: string[]): string {
@@ -232,7 +246,6 @@
     {#if focus && focusItem}
       <div class="focus" data-testid="lab-focus">
         <div class="focus-head">
-          <span class="tag" data-kind={focus.kind}>{t(`opening.level.${focus.kind}`)}</span>
           {#if focus.kind !== 'family'}<SideMark side={focus.side} />{/if}
           <span class="eco">{focus.eco}</span>
           <span class="focus-name">{labelOf(focus)}</span>
@@ -271,10 +284,10 @@
               onclick={() => enter(n)}
               aria-label={t('lab.enter', { name: nameOf(n) })}
             >
-              <span class="tag" data-kind={n.kind}>{t(`opening.level.${n.kind}`)}</span>
               {#if n.kind !== 'family'}<SideMark side={n.side} />{/if}
               <span class="eco">{n.eco}</span>
               <span class="label">{labelOf(n)}</span>
+              <span class="kind">{t(`opening.level.${n.kind}`)}</span>
               {#if n.kind === 'family'}<span class="line-hint">{sanLine(n.ucis)}</span>{/if}
               {#if n.children.length}<span
                   class="sub"
@@ -309,6 +322,7 @@
     {:else}
       <ul class="list" aria-label={t('lab.byMove')}>
         {#each moves as m, i (m.uci)}
+          {@const named = m.name ? listName(m.name) : null}
           <li class="row">
             <button
               type="button"
@@ -323,8 +337,9 @@
                   title={t('explore.inRepertoire')}>✓</span
                 >{/if}
               <span class="label muted" title={m.name ? `${m.eco} ${m.name}` : undefined}
-                >{m.name ? `${m.eco} ${relativeName(m.name)}` : ''}</span
+                >{named ? `${m.eco} ${named.text}` : ''}</span
               >
+              {#if named?.kind}<span class="kind">{t(`opening.level.${named.kind}`)}</span>{/if}
               <span class="bar" style:width={`${Math.max(4, (m.lines / maxLines) * 100)}%`}></span>
             </button>
             <Mastery summary={summaries.get(lineKey(byMove[i]!.line))} />
@@ -389,14 +404,12 @@
     padding: 0.2rem 0.55rem;
     font-size: 0.8rem;
   }
-  .tag {
-    font-size: 0.7rem;
+  .kind {
+    font-size: 0.65rem;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
-    border: 1px solid currentColor;
-    border-radius: 4px;
-    padding: 0 0.3rem;
+    letter-spacing: 0.04em;
     color: var(--muted);
+    opacity: 0.65;
     white-space: nowrap;
   }
   .line-hint {
