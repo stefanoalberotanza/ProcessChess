@@ -456,7 +456,7 @@
   </aside>
 
   <section class="center" aria-label={t('board.label')}>
-    <OpeningBar movesSan={barMoves} {outOfRepertoire} {outOfLine} />
+    <OpeningBar movesSan={barMoves} fen={boardFen} {graph} {outOfRepertoire} {outOfLine} />
     <Board
       maxSize={tab === 'graph' ? 380 : 520}
       fen={boardFen}

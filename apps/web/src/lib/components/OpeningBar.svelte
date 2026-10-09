@@ -1,22 +1,28 @@
 <script lang="ts">
-  import { resolveOpening } from '@processchess/core';
+  import { type OpeningGraph, isBookPosition, resolveOpening } from '@processchess/core';
   import { app } from '$lib/app.svelte';
   import { t } from '$lib/i18n/index.svelte';
 
   interface Props {
     /** SAN moves from the initial position; null when the collection has a custom start. */
     movesSan: string[] | null;
+    /** Board after `movesSan`. */
+    fen: string;
+    /** Opening graph, to tell book positions (named or not) from positions out of theory. */
+    graph: OpeningGraph | null;
     /** SAN of a move just played that is not in the repertoire. */
     outOfRepertoire?: string | null;
     /** Lab: SAN of a move just played that is not the opening's move. */
     outOfLine?: string | null;
   }
-  let { movesSan, outOfRepertoire = null, outOfLine = null }: Props = $props();
+  let { movesSan, fen, graph, outOfRepertoire = null, outOfLine = null }: Props = $props();
 
   // the openings dataset is loaded with the app (app.ready)
   const opening = $derived(app.ready && movesSan ? resolveOpening(movesSan) : null);
+  // Out of theory = the position is not on any book line. Not "the position has no name": book
+  // lines pass through unnamed positions (e.g. halfway through the Indian Defense line).
   const outOfTheory = $derived(
-    movesSan !== null && movesSan.length > 0 && (opening?.ply ?? 0) < movesSan.length,
+    movesSan !== null && movesSan.length > 0 && graph !== null && !isBookPosition(graph, fen),
   );
 </script>
 
@@ -31,7 +37,8 @@
     <span class="muted">{movesSan.length === 0 ? t('opening.start') : t('opening.unknown')}</span>
   {/if}
   {#if outOfTheory}
-    <span class="badge theory" title={t('opening.outOfTheoryHelp')}>{t('opening.outOfTheory')}</span
+    <span class="badge theory" data-testid="out-of-theory" title={t('opening.outOfTheoryHelp')}
+      >{t('opening.outOfTheory')}</span
     >
   {/if}
   {#if outOfLine}

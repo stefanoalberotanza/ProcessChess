@@ -394,3 +394,31 @@ test('opening lab: White and Black openings are marked, filtered and practised f
   await page.getByRole('button', { name: 'Back to the list' }).click();
   await expect(page.locator('.cg-wrap.orientation-white')).toBeVisible();
 });
+
+test('"out of theory" only appears off the book, not on unnamed book positions', async ({
+  page,
+}) => {
+  await ready(page);
+  // Indian Defense practice line: its middle positions are on book lines but have no name
+  await page.getByRole('button', { name: 'Open Indian Defense', exact: true }).click();
+  const focusCard = page.getByTestId('lab-focus');
+  const sans = ((await focusCard.locator('.line').textContent()) ?? '')
+    .trim()
+    .split(' ')
+    .map((m) => m.replace(/^\d+\./, ''));
+  await focusCard.getByRole('button', { name: 'Practise Indian Defense' }).click();
+  for (const san of sans) {
+    await playSan(page, san);
+    await expect(page.getByTestId('out-of-theory')).toHaveCount(0);
+  }
+  await expect(page.getByTestId('lab-progress')).toHaveText('Opening complete');
+
+  // a real departure from the book is still flagged
+  await page.getByRole('button', { name: 'Back to the list' }).click();
+  await page
+    .getByRole('navigation', { name: 'Opening levels' })
+    .getByRole('button', { name: 'All openings' })
+    .click();
+  for (const san of ['h4', 'h5', 'Rh3']) await playSan(page, san);
+  await expect(page.getByTestId('out-of-theory')).toBeVisible();
+});
