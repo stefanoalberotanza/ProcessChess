@@ -139,3 +139,71 @@ describe('openingStats', () => {
     expect(await storage.reclassifyOpenings()).toBe(0);
   });
 });
+
+describe('openingStats with the opening lab', () => {
+  // C60 Ruy Lopez: 1. e4 e5 2. Nf3 Nc6 3. Bb5; C70 Ruy Lopez: Morphy Defense: ... 3... a6
+  const LINE = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1b5', 'a7a6', 'b5a4', 'g8f6'];
+
+  async function labRun(attempts: { ply: number; result: 'correct' | 'wrong' }[], finished = true) {
+    const runId = newId();
+    for (const a of attempts) {
+      await storage.recordLabAttempt({
+        runId,
+        ply: a.ply,
+        epd: 'unused',
+        uci: LINE[a.ply - 1]!,
+        result: a.result,
+        playedUci: LINE[a.ply - 1]!,
+        hints: 0,
+        timeMs: 100,
+      });
+    }
+    if (finished) {
+      await storage.recordLabRun({
+        id: runId,
+        line: LINE,
+        eco: 'C60',
+        name: 'Ruy Lopez',
+        plies: LINE.length,
+        errors: 0,
+        hints: 0,
+        clean: true,
+        timeMs: 100,
+      });
+    }
+  }
+
+  it('classifies each lab move by the line up to it', async () => {
+    await labRun([
+      { ply: 1, result: 'correct' },
+      { ply: 5, result: 'wrong' },
+      { ply: 6, result: 'correct' },
+    ]);
+    await labRun([{ ply: 5, result: 'correct' }], false); // unfinished run: no line, ignored
+
+    const lab = (by: 'label' | 'opening' | 'variation', userColor?: 'w' | 'b') =>
+      storage.openingStats({ by, userColor, source: 'lab' });
+    expect((await lab('label')).map((r) => [r.label, r.attempts, r.correct, r.wrong])).toEqual([
+      ['king', 3, 2, 1],
+    ]);
+    expect((await lab('opening')).map((r) => [r.opening, r.attempts])).toEqual([['Ruy Lopez', 2]]);
+    expect((await lab('variation')).map((r) => [r.opening, r.variation, r.attempts])).toEqual([
+      ['Ruy Lopez', null, 1],
+      ['Ruy Lopez', 'Morphy Defense', 1],
+    ]);
+    // the side that played the move
+    expect((await lab('label', 'b')).map((r) => r.attempts)).toEqual([1]);
+    expect(await storage.openingStats({ by: 'label', source: 'repertoire' })).toEqual([]);
+  });
+
+  it('adds lab and repertoire attempts together by default', async () => {
+    const ruy = (await importPgn(RUY)).collection.id;
+    const tree = await storage.loadTree(ruy);
+    const s = await storage.startSession(ruy, tree.rootId);
+    const e4 = findChildByUci(tree, tree.rootId, 'e2e4')!;
+    await storage.recordAttempt({ sessionId: s.id, nodeId: e4.id, result: 'correct', timeMs: 1 });
+    await labRun([{ ply: 1, result: 'wrong' }]);
+    const [king] = await storage.openingStats({ by: 'label' });
+    expect(king).toMatchObject({ label: 'king', attempts: 2, correct: 1, wrong: 1 });
+  });
+});

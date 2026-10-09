@@ -2,6 +2,7 @@ import {
   type CardMap,
   type DayStat,
   INITIAL_FEN,
+  type OpeningClassification,
   type LinePassRecord,
   type ReviewInput,
   type SrsCard,
@@ -9,6 +10,7 @@ import {
   type TreeChanges,
   type TreeEdit,
   archiveCollection,
+  classifyOpeningUci,
   classifyTree,
   createTree,
   emptyTree,
@@ -591,6 +593,40 @@ export class SqliteStorage implements Storage {
   }
 
   async openingStats(query: OpeningStatsQuery): Promise<OpeningStatsRow[]> {
+    const source = query.source ?? 'all';
+    const rows = [
+      ...(source === 'lab' ? [] : await this.repertoireOpeningStats(query)),
+      ...(source === 'repertoire' ? [] : await this.labOpeningStats(query)),
+    ];
+    // merge rows with the same key (repertoire + lab), sorted by key with nulls first
+    const merged = new Map<string, OpeningStatsRow>();
+    for (const r of rows) {
+      const key = JSON.stringify([r.label, r.opening, r.variation]);
+      const prev = merged.get(key);
+      merged.set(
+        key,
+        prev
+          ? {
+              ...prev,
+              attempts: prev.attempts + r.attempts,
+              correct: prev.correct + r.correct,
+              hint: prev.hint + r.hint,
+              wrong: prev.wrong + r.wrong,
+              lastAttemptAt:
+                prev.lastAttemptAt > r.lastAttemptAt ? prev.lastAttemptAt : r.lastAttemptAt,
+            }
+          : r,
+      );
+    }
+    const cmp = (x: string | null, y: string | null) =>
+      x === y ? 0 : x === null ? -1 : y === null ? 1 : x < y ? -1 : 1;
+    return [...merged.values()].sort(
+      (x, y) => cmp(x.label, y.label) || cmp(x.opening, y.opening) || cmp(x.variation, y.variation),
+    );
+  }
+
+  /** `openingStats` over drill attempts on repertoire nodes (classified in `node`). */
+  private async repertoireOpeningStats(query: OpeningStatsQuery): Promise<OpeningStatsRow[]> {
     const n = schema.node;
     const keys =
       query.by === 'label'
@@ -621,8 +657,7 @@ export class SqliteStorage implements Storage {
           isNotNull(keys[0]!),
         ),
       )
-      .groupBy(...keys)
-      .orderBy(...keys.map((k) => asc(k)));
+      .groupBy(...keys);
     return rows.map((r) => ({
       label: r.label,
       opening: r.opening,
@@ -633,6 +668,53 @@ export class SqliteStorage implements Storage {
       wrong: Number(r.wrong),
       lastAttemptAt: new Date(Number(r.lastTs)),
     }));
+  }
+
+  /**
+   * `openingStats` over opening-lab moves: each move is classified by its run's line up to it
+   * (`classifyOpeningUci`). Moves of unfinished runs have no stored line and are left out.
+   */
+  private async labOpeningStats(query: OpeningStatsQuery): Promise<OpeningStatsRow[]> {
+    if (!isOpeningsLoaded()) return [];
+    const rows = await this.db
+      .select({
+        ply: schema.labAttempt.ply,
+        result: schema.labAttempt.result,
+        ts: schema.labAttempt.ts,
+        line: schema.labRun.line,
+      })
+      .from(schema.labAttempt)
+      .innerJoin(schema.labRun, eq(schema.labRun.id, schema.labAttempt.runId));
+    const classes = new Map<string, OpeningClassification | null>();
+    const out = new Map<string, OpeningStatsRow>();
+    for (const r of rows) {
+      if (query.userColor && (r.ply % 2 === 1 ? 'w' : 'b') !== query.userColor) continue;
+      const prefix = r.line.split(' ').slice(0, r.ply);
+      const pk = prefix.join(' ');
+      if (!classes.has(pk)) classes.set(pk, classifyOpeningUci(prefix));
+      const c = classes.get(pk);
+      if (!c) continue;
+      const row = {
+        label: query.by === 'label' ? c.label : null,
+        opening: query.by === 'label' ? null : (c.opening?.name ?? null),
+        variation: query.by === 'variation' ? (c.variation?.name ?? null) : null,
+      };
+      if ((query.by === 'label' ? row.label : row.opening) === null) continue;
+      const key = JSON.stringify([row.label, row.opening, row.variation]);
+      const prev = out.get(key) ?? {
+        ...row,
+        attempts: 0,
+        correct: 0,
+        hint: 0,
+        wrong: 0,
+        lastAttemptAt: r.ts,
+      };
+      prev.attempts++;
+      prev[r.result]++;
+      if (r.ts > prev.lastAttemptAt) prev.lastAttemptAt = r.ts;
+      out.set(key, prev);
+    }
+    return [...out.values()];
   }
 
   async seedOpenings(rows: Opening[]) {

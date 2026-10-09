@@ -82,11 +82,13 @@ export interface MoveHistory {
 export interface OpeningStatsQuery {
   /** Grouping: style label, opening family, or opening family + variation. */
   by: 'label' | 'opening' | 'variation';
-  /** Only collections where the user plays this side. */
+  /** Only moves of this side: collections where the user plays it, lab moves it played. */
   userColor?: Color;
+  /** Repertoire drills, opening lab, or both (default). */
+  source?: 'repertoire' | 'lab' | 'all';
 }
 
-/** Attempt totals for one label, opening or variation (non-archived collections). */
+/** Attempt totals for one label, opening or variation (non-archived collections + lab). */
 export interface OpeningStatsRow {
   label: OpeningLabel | null;
   opening: string | null;
