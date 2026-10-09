@@ -33,6 +33,9 @@ export const en = {
   'opening.outOfTheory': 'Out of theory',
   'opening.outOfTheoryHelp': 'This position is not in the openings dataset',
   'opening.outOfRepertoire': 'Out of repertoire: {san}',
+  'opening.label.king': "King's game",
+  'opening.label.queen': "Queen's game",
+  'opening.label.flank': 'Flank opening',
 
   'home.title': 'Your collections',
   'home.collections': 'Collections',

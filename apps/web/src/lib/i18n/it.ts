@@ -35,6 +35,9 @@ export const it = {
   'opening.outOfTheory': 'Fuori teoria',
   'opening.outOfTheoryHelp': 'Questa posizione non è nel dataset delle aperture',
   'opening.outOfRepertoire': 'Fuori repertorio: {san}',
+  'opening.label.king': 'Gioco di Re',
+  'opening.label.queen': 'Gioco di Regina',
+  'opening.label.flank': 'Apertura di fianco',
 
   'home.title': 'Le tue collezioni',
   'home.collections': 'Collezioni',

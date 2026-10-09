@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type OpeningGraph, isBookPosition, resolveOpening } from '@processchess/core';
+  import { type OpeningGraph, classifyOpening, isBookPosition } from '@processchess/core';
   import { app } from '$lib/app.svelte';
   import { t } from '$lib/i18n/index.svelte';
 
@@ -18,7 +18,9 @@
   let { movesSan, fen, graph, outOfRepertoire = null, outOfLine = null }: Props = $props();
 
   // the openings dataset is loaded with the app (app.ready)
-  const opening = $derived(app.ready && movesSan ? resolveOpening(movesSan) : null);
+  // label › opening › variation (ADR 012): one-move names are style labels, not openings
+  const c = $derived(app.ready && movesSan ? classifyOpening(movesSan) : null);
+  const eco = $derived((c?.variation ?? c?.opening)?.eco ?? null);
   // Out of theory = the position is not on any book line. Not "the position has no name": book
   // lines pass through unnamed positions (e.g. halfway through the Indian Defense line).
   const outOfTheory = $derived(
@@ -27,10 +29,15 @@
 </script>
 
 <div class="opening-bar" aria-live="polite" data-testid="opening-bar">
-  {#if opening}
-    <span class="eco">{opening.eco}</span>
-    <span class="family">{opening.family}</span>
-    {#if opening.variation}<span class="variation">{opening.variation}</span>{/if}
+  {#if c?.label}
+    <span class="badge label" data-testid="opening-label">{t(`opening.label.${c.label}`)}</span>
+  {/if}
+  {#if c?.opening}
+    {#if eco}<span class="eco">{eco}</span>{/if}
+    <span class="family">{c.opening.name}</span>
+    {#if c.variation}<span class="variation">› {c.variation.name}</span>{/if}
+  {:else if c?.label}
+    <!-- one-move lines: the label is all there is -->
   {:else if movesSan === null}
     <span class="muted">{t('opening.customStart')}</span>
   {:else}
@@ -72,6 +79,10 @@
     border-radius: 999px;
     padding: 0.1rem 0.6rem;
     font-size: 0.85rem;
+  }
+  .label {
+    background: #e3ecfa;
+    color: #1d3f73;
   }
   .theory {
     background: #fff3cd;

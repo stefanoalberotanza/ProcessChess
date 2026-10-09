@@ -13,13 +13,17 @@ export const app = $state<AppState>({ ready: false, storage: null, persistent: t
 
 let started: Promise<void> | undefined;
 
-/** Opens the database (OPFS worker), applies migrations and loads the openings dataset. */
+/**
+ * Opens the database (OPFS worker), applies migrations, loads the openings dataset and
+ * classifies any unclassified moves.
+ */
 export function initApp(): Promise<void> {
   started ??= (async () => {
     try {
       const { createOpfsStorage } = await import('@processchess/db/opfs');
       const [storage] = await Promise.all([createOpfsStorage(), loadOpenings()]);
       await storage.migrate();
+      await storage.reclassifyOpenings(); // backfill collections stored before classification
       if (!storage.persistent) console.warn('OPFS unavailable:', storage.fallbackReason);
       app.storage = storage;
       app.persistent = storage.persistent;

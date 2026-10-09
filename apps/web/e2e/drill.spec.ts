@@ -148,7 +148,11 @@ test('import the fixture, train a line until clean, reload keeps attempts and st
     if (pass < 3) await page.keyboard.press('r'); // repeat the same line
   }
   await expect(cleanCounter).toHaveText(`Clean lines: 1 / ${TOTAL_LINES}`);
-  await expect(page.getByTestId('opening-bar')).toContainText('C54');
+  const bar = page.getByTestId('opening-bar');
+  await expect(bar).toContainText('C54');
+  await expect(bar).toContainText('Italian Game');
+  await expect(bar).toContainText('Classical Variation');
+  await expect(page.getByTestId('opening-label')).toHaveText("King's game");
   await waitSaved(page);
 
   await page.reload();
@@ -242,7 +246,9 @@ test('graph view: a board per node, connected to the main board and the repertoi
 
   // clicking a node moves the shared board
   await nodes.getByRole('button', { name: /^e4 — B00 King's Pawn Game/ }).click();
-  await expect(page.getByTestId('opening-bar')).toContainText('B00');
+  // a one-move name is a style label, not an opening (ADR 012)
+  await expect(page.getByTestId('opening-label')).toHaveText("King's game");
+  await expect(page.getByTestId('opening-bar')).not.toContainText('B00');
   await expect(nodes.locator('[aria-current="true"]')).toHaveAccessibleName(/^e4/);
   // the previous position stays visible as part of the path
   await expect(nodes.getByRole('button', { name: /^Start/ })).toBeVisible();
@@ -347,7 +353,7 @@ test('opening lab: practise by move from the board position', async ({ page }) =
   const byMove = page.getByRole('list', { name: 'Practise by move' });
   // navigate without practising, then practise a book move from there
   await byMove.getByRole('button', { name: /^Go to e4/ }).click();
-  await expect(page.getByTestId('opening-bar')).toContainText('B00');
+  await expect(page.getByTestId('opening-label')).toHaveText("King's game");
   await byMove.getByRole('button', { name: /^Practise c5/ }).click();
   await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
   await expect(page.getByTestId('lab-progress')).toHaveText('Move 1 of 8');
