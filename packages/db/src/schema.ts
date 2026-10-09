@@ -24,6 +24,9 @@ export type Color = (typeof COLORS)[number];
 export const ATTEMPT_RESULTS = ['correct', 'hint', 'wrong'] as const;
 export type AttemptResult = (typeof ATTEMPT_RESULTS)[number];
 
+export const OPENING_LABELS = ['king', 'queen', 'flank'] as const;
+export type OpeningLabel = (typeof OPENING_LABELS)[number];
+
 export const STAT_SCOPES = ['collection', 'kind'] as const;
 export type StatScope = (typeof STAT_SCOPES)[number];
 
@@ -76,8 +79,15 @@ export const node = sqliteTable(
     uci: text('uci'),
     isUserMove: integer('is_user_move', { mode: 'boolean' }).notNull().default(false),
     comment: text('comment'),
+    /** ECO code of the variation, or of the opening when there is no variation. */
     openingEco: text('opening_eco'),
+    /** Opening family, e.g. "Ruy Lopez" (core `classifyTree`). */
     openingName: text('opening_name'),
+    /** Style label of the line: 'king' (1.e4), 'queen' (1.d4) or 'flank'. Opening columns are
+     * null when unclassified (custom start position, or openings dataset not loaded). */
+    openingLabel: text('opening_label', { enum: OPENING_LABELS }),
+    /** Variation part of the deepest name, e.g. "Closed". */
+    openingVariation: text('opening_variation'),
   },
   (t) => [
     index('node_epd_idx').on(t.epd),

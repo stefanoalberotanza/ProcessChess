@@ -19,6 +19,7 @@ import type {
   EvalMode,
   Node,
   Opening,
+  OpeningLabel,
   Session,
 } from './schema';
 
@@ -76,6 +77,26 @@ export interface MoveHistory {
   firstTryRate: number | null;
   /** Most frequent first wrong move (UCI) among `wrong` attempts; ties → most recent. */
   mostFrequentWrong: { uci: string; count: number } | null;
+}
+
+export interface OpeningStatsQuery {
+  /** Grouping: style label, opening family, or opening family + variation. */
+  by: 'label' | 'opening' | 'variation';
+  /** Only collections where the user plays this side. */
+  userColor?: Color;
+}
+
+/** Attempt totals for one label, opening or variation (non-archived collections). */
+export interface OpeningStatsRow {
+  label: OpeningLabel | null;
+  opening: string | null;
+  variation: string | null;
+  attempts: number;
+  correct: number;
+  hint: number;
+  wrong: number;
+  /** Time of the most recent attempt. */
+  lastAttemptAt: Date;
 }
 
 /**
@@ -145,6 +166,15 @@ export interface Storage {
   dailyStats(range: { from: string; to: string; collectionId?: string }): Promise<DayStat[]>;
   /** Recomputes cards and daily stats from the attempt log. */
   rebuildDerived(): Promise<void>;
+
+  /**
+   * Classifies the nodes of every standard-start collection that has unclassified moves
+   * (e.g. stored before classification existed). Requires `loadOpenings()`. Returns how many
+   * collections were updated.
+   */
+  reclassifyOpenings(): Promise<number>;
+  /** Attempt totals grouped by opening label, opening or variation, sorted by key. */
+  openingStats(query: OpeningStatsQuery): Promise<OpeningStatsRow[]>;
 
   /** Replaces the `opening` reference table. */
   seedOpenings(rows: Opening[]): Promise<void>;

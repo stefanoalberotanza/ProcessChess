@@ -41,5 +41,12 @@ export const migrations: Migration[] = [
       "CREATE TABLE `lab_run` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`ts` integer NOT NULL,\n\t`line` text NOT NULL,\n\t`eco` text,\n\t`name` text,\n\t`plies` integer NOT NULL,\n\t`errors` integer NOT NULL,\n\t`hints` integer NOT NULL,\n\t`clean` integer NOT NULL,\n\t`time_ms` integer NOT NULL\n);",
       "CREATE INDEX `lab_run_line_ts_idx` ON `lab_run` (`line`,`ts`);"
     ]
+  },
+  {
+    "tag": "0003_opening_classification",
+    "statements": [
+      "ALTER TABLE `node` ADD `opening_label` text;",
+      "ALTER TABLE `node` ADD `opening_variation` text;"
+    ]
   }
 ];

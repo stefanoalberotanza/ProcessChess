@@ -19,6 +19,7 @@ describe('bundled migrations', () => {
       '0000_init',
       '0001_archive_and_line_pass',
       '0002_opening_lab',
+      '0003_opening_classification',
     ]);
   });
 });
@@ -31,6 +32,7 @@ describe('runMigrations', () => {
       '0000_init',
       '0001_archive_and_line_pass',
       '0002_opening_lab',
+      '0003_opening_classification',
     ]);
     expect(await runMigrations(exec)).toEqual([]);
     const rows = sqlite.prepare('SELECT tag, applied_at FROM __migrations ORDER BY tag').all();
@@ -38,6 +40,7 @@ describe('runMigrations', () => {
       { tag: '0000_init', applied_at: 42 },
       { tag: '0001_archive_and_line_pass', applied_at: 42 },
       { tag: '0002_opening_lab', applied_at: 42 },
+      { tag: '0003_opening_classification', applied_at: 42 },
     ]);
     const cols = sqlite.prepare("SELECT name FROM pragma_table_info('collection')").all();
     expect(cols.map((c) => c.name)).toContain('archived_at');
@@ -47,7 +50,11 @@ describe('runMigrations', () => {
     const sqlite = new DatabaseSync(':memory:');
     const exec = nodeSqliteExecutor(sqlite);
     await runMigrations(exec, migrations.slice(0, 1));
-    expect(await runMigrations(exec)).toEqual(['0001_archive_and_line_pass', '0002_opening_lab']);
+    expect(await runMigrations(exec)).toEqual([
+      '0001_archive_and_line_pass',
+      '0002_opening_lab',
+      '0003_opening_classification',
+    ]);
   });
 
   it('rolls back a failing migration and leaves it pending', async () => {

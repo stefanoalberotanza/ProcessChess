@@ -9,15 +9,17 @@ import {
   type TreeChanges,
   type TreeEdit,
   archiveCollection,
+  classifyTree,
   createTree,
   emptyTree,
   fenAt,
   dayKey,
+  isOpeningsLoaded,
   playMove,
   reviewCard,
   toEpd,
 } from '@processchess/core';
-import { and, asc, between, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, between, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { type SqliteRemoteDatabase, drizzle } from 'drizzle-orm/sqlite-proxy';
 import { ulid } from 'ulid';
 import type { SqlExecutor } from './executor';
@@ -35,12 +37,15 @@ import type {
   NewCollectionInput,
   NewLinePassInput,
   NewNodeInput,
+  OpeningStatsQuery,
+  OpeningStatsRow,
   Storage,
 } from './storage';
 
 export { INITIAL_FEN };
 
 export type Db = SqliteRemoteDatabase<typeof schema>;
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /** ULID generator, to pass as `newId` to core tree operations. */
 export const newId = (): string => ulid();
@@ -97,12 +102,49 @@ export class SqliteStorage implements Storage {
   }
 
   /** Serialises transactions: SQLite has one connection per adapter. */
-  private tx<T>(
-    fn: (tx: Parameters<Parameters<Db['transaction']>[0]>[0]) => Promise<T>,
-  ): Promise<T> {
+  private tx<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     const run = this.queue.then(() => this.db.transaction(fn));
     this.queue = run.catch(() => undefined);
     return run;
+  }
+
+  /**
+   * Writes the opening classification of every node of a collection (core `classifyTree`),
+   * touching only rows that changed. No-op until the openings dataset is loaded.
+   */
+  private async classifyNodes(tx: Tx, collectionId: string, tree: Tree) {
+    if (!isOpeningsLoaded()) return;
+    const classes = classifyTree(tree);
+    if (classes.size === 0) return;
+    const stored = await tx
+      .select({
+        id: schema.node.id,
+        label: schema.node.openingLabel,
+        name: schema.node.openingName,
+        variation: schema.node.openingVariation,
+        eco: schema.node.openingEco,
+      })
+      .from(schema.node)
+      .where(eq(schema.node.collectionId, collectionId));
+    for (const row of stored) {
+      const c = classes.get(row.id);
+      if (!c) continue;
+      const next = {
+        openingLabel: c.label,
+        openingName: c.opening?.name ?? null,
+        openingVariation: c.variation?.name ?? null,
+        openingEco: (c.variation ?? c.opening)?.eco ?? null,
+      };
+      if (
+        row.label === next.openingLabel &&
+        row.name === next.openingName &&
+        row.variation === next.openingVariation &&
+        row.eco === next.openingEco
+      ) {
+        continue;
+      }
+      await tx.update(schema.node).set(next).where(eq(schema.node.id, row.id));
+    }
   }
 
   async migrate() {
@@ -149,6 +191,7 @@ export class SqliteStorage implements Storage {
           .insert(schema.node)
           .values(part.map((n) => ({ ...n, collectionId: collection!.id })));
       }
+      await this.classifyNodes(tx, collection!.id, edit.tree);
       return collection!;
     });
   }
@@ -205,10 +248,16 @@ export class SqliteStorage implements Storage {
       .where(eq(schema.collection.id, id));
   }
 
-  async loadTree(collectionId: string): Promise<Tree> {
-    const c = await this.getCollection(collectionId);
+  loadTree(collectionId: string): Promise<Tree> {
+    return this.loadTreeIn(this.db, collectionId);
+  }
+
+  private async loadTreeIn(db: Db | Tx, collectionId: string): Promise<Tree> {
+    const c = await db.query.collection.findFirst({
+      where: eq(schema.collection.id, collectionId),
+    });
     if (!c) throw new Error(`Unknown collection ${collectionId}`);
-    const rows = await this.db
+    const rows = await db
       .select()
       .from(schema.node)
       .where(eq(schema.node.collectionId, collectionId));
@@ -245,6 +294,9 @@ export class SqliteStorage implements Storage {
           .set({ ord: u.ord, comment: u.comment })
           .where(and(eq(schema.node.id, u.id), eq(schema.node.collectionId, collectionId)));
       }
+      if (changes.inserted.length) {
+        await this.classifyNodes(tx, collectionId, await this.loadTreeIn(tx, collectionId));
+      }
     });
   }
 
@@ -265,10 +317,10 @@ export class SqliteStorage implements Storage {
     const tree = await this.loadTree(input.collectionId);
     const played = playMove(fenAt(tree, input.parentId), input.uci);
     if (!played) throw new Error(`Illegal move ${input.uci}`);
-    const [node] = await this.db
-      .insert(schema.node)
-      .values({
-        id: ulid(),
+    const id = ulid();
+    await this.tx(async (tx) => {
+      await tx.insert(schema.node).values({
+        id,
         collectionId: input.collectionId,
         parentId: input.parentId,
         ord: input.ord ?? 0,
@@ -277,9 +329,14 @@ export class SqliteStorage implements Storage {
         uci: played.uci,
         isUserMove: input.isUserMove,
         comment: input.comment ?? null,
-      })
-      .returning();
-    return node!;
+      });
+      await this.classifyNodes(
+        tx,
+        input.collectionId,
+        await this.loadTreeIn(tx, input.collectionId),
+      );
+    });
+    return (await this.getNode(id))!;
   }
 
   async getNode(id: string): Promise<Node | undefined> {
@@ -512,6 +569,70 @@ export class SqliteStorage implements Storage {
       .where(eq(schema.linePass.collectionId, collectionId))
       .orderBy(asc(schema.linePass.ts), asc(schema.linePass.id));
     return rows;
+  }
+
+  async reclassifyOpenings() {
+    if (!isOpeningsLoaded()) return 0;
+    const pending = await this.db
+      .selectDistinct({ id: schema.node.collectionId })
+      .from(schema.node)
+      .innerJoin(schema.collection, eq(schema.collection.id, schema.node.collectionId))
+      .where(
+        and(
+          eq(schema.collection.startFen, INITIAL_FEN),
+          isNotNull(schema.node.parentId),
+          isNull(schema.node.openingLabel),
+        ),
+      );
+    for (const { id } of pending) {
+      await this.tx(async (tx) => this.classifyNodes(tx, id, await this.loadTreeIn(tx, id)));
+    }
+    return pending.length;
+  }
+
+  async openingStats(query: OpeningStatsQuery): Promise<OpeningStatsRow[]> {
+    const n = schema.node;
+    const keys =
+      query.by === 'label'
+        ? [n.openingLabel]
+        : query.by === 'opening'
+          ? [n.openingName]
+          : [n.openingName, n.openingVariation];
+    const count = (result: string) =>
+      sql<number>`coalesce(sum(case when ${schema.attempt.result} = ${result} then 1 else 0 end), 0)`;
+    const rows = await this.db
+      .select({
+        label: query.by === 'label' ? n.openingLabel : sql<null>`null`,
+        opening: query.by === 'label' ? sql<null>`null` : n.openingName,
+        variation: query.by === 'variation' ? n.openingVariation : sql<null>`null`,
+        attempts: sql<number>`count(*)`,
+        correct: count('correct'),
+        hint: count('hint'),
+        wrong: count('wrong'),
+        lastTs: sql<number>`max(${schema.attempt.ts})`,
+      })
+      .from(schema.attempt)
+      .innerJoin(n, eq(n.id, schema.attempt.nodeId))
+      .innerJoin(schema.collection, eq(schema.collection.id, n.collectionId))
+      .where(
+        and(
+          isNull(schema.collection.archivedAt),
+          query.userColor ? eq(schema.collection.userColor, query.userColor) : undefined,
+          isNotNull(keys[0]!),
+        ),
+      )
+      .groupBy(...keys)
+      .orderBy(...keys.map((k) => asc(k)));
+    return rows.map((r) => ({
+      label: r.label,
+      opening: r.opening,
+      variation: r.variation,
+      attempts: Number(r.attempts),
+      correct: Number(r.correct),
+      hint: Number(r.hint),
+      wrong: Number(r.wrong),
+      lastAttemptAt: new Date(Number(r.lastTs)),
+    }));
   }
 
   async seedOpenings(rows: Opening[]) {
