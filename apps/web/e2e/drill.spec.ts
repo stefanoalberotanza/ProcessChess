@@ -324,3 +324,17 @@ test('opening lab: practise by move from the board position', async ({ page }) =
   await playSan(page, 'c5');
   await expect(page.getByTestId('lab-progress')).toHaveText('Move 3 of 8');
 });
+
+test('exports the FEN of the board position', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await ready(page);
+  const fen = page.getByLabel('FEN', { exact: true });
+  await expect(fen).toHaveValue('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+  await playSan(page, 'e4');
+  await expect(fen).toHaveValue('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1');
+  await page.getByRole('button', { name: 'Copy FEN' }).click();
+  await expect(page.getByText('Copied.')).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+  );
+});

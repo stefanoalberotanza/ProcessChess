@@ -29,6 +29,7 @@
   import { app, storage } from '$lib/app.svelte';
   import DrillPanel from '$lib/components/DrillPanel.svelte';
   import ExplorePanel from '$lib/components/ExplorePanel.svelte';
+  import FenExport from '$lib/components/FenExport.svelte';
   import LabPanel from '$lib/components/LabPanel.svelte';
   import GraphPanel from '$lib/components/GraphPanel.svelte';
   import ImportForm from '$lib/components/ImportForm.svelte';
@@ -502,6 +503,7 @@
         {#if sanError}<span class="error" role="alert">{sanError}</span>{/if}
       </form>
     </div>
+    <FenExport fen={boardFen} />
     {#if !session}
       <ol class="breadcrumb" aria-label={t('nav.moves')}>
         {#each breadcrumb as b (b.i)}

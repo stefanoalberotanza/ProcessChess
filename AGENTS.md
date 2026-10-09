@@ -37,6 +37,7 @@ apps/web/                     SvelteKit app (@processchess/web)
   src/lib/lab.svelte.ts       LabController: opening lab sessions + lab history
   src/lib/i18n/               en.ts (keys), it.ts, t()
   src/lib/components/         RepertoireList, ExplorePanel, LabPanel, Mastery, GraphPanel, MiniBoard,
+                              FenExport,
                               RepertoirePanel, DrillPanel, OpeningBar, MoveTree, MoveHistory,
                               ImportForm
   src/routes/+page.svelte     the workspace (?c=<collection>&tab=explore|graph|repertoire|train)
