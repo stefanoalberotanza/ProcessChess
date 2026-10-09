@@ -24,3 +24,25 @@ export interface ResolvedOpening {
 export interface OpeningGraphJson {
   nodes: [hash: string, edges: string][];
 }
+
+/** Style of a line, from White's first move: 1.e4, 1.d4, anything else. */
+export type OpeningLabel = 'king' | 'queen' | 'flank';
+
+export interface NamedOpeningPart {
+  eco: string;
+  name: string;
+  /** Ply at which this part starts (opening) or is reached (variation). */
+  ply: number;
+}
+
+/** A line classified as label › opening › variation (see `classifyOpening`). */
+export interface OpeningClassification {
+  /** Null for the empty line. */
+  label: OpeningLabel | null;
+  /** Opening family, e.g. "Ruy Lopez"; null while only a one-move name has been reached. */
+  opening: NamedOpeningPart | null;
+  /** Variation part of the deepest name, e.g. "Closed"; null if the name has none. */
+  variation: NamedOpeningPart | null;
+  /** Ply of the deepest named position (0 if none); beyond it the line is out of theory. */
+  ply: number;
+}

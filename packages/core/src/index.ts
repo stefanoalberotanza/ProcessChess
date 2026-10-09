@@ -3,10 +3,22 @@ export * from './lab';
 export { IllegalMoveError } from './errors';
 export { toEpd } from './fen';
 export { isOpeningsLoaded, loadOpenings } from './openings/data';
-export { OpeningsNotLoadedError, resolveOpening, splitOpeningName } from './openings/resolve';
+export {
+  OpeningsNotLoadedError,
+  classifyOpening,
+  resolveOpening,
+  splitOpeningName,
+} from './openings/resolve';
+export { classifyTree } from './openings/tree';
 export * from './openings/graph';
 export * from './openings/graph-view';
-export type { OpeningIndex, ResolvedOpening } from './openings/types';
+export type {
+  NamedOpeningPart,
+  OpeningClassification,
+  OpeningIndex,
+  OpeningLabel,
+  ResolvedOpening,
+} from './openings/types';
 export * from './pgn';
 export * from './position';
 export * from './srs';

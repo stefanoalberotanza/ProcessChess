@@ -39,3 +39,13 @@ describe('splitOpeningName', () => {
     expect(splitOpeningName('Italian Game')).toEqual({ family: 'Italian Game', variation: null });
   });
 });
+
+describe('splitOpeningName without a colon', () => {
+  it('splits at the first comma', () => {
+    // A07 "King's Indian Attack, with Bf5"
+    expect(splitOpeningName("King's Indian Attack, with Bf5")).toEqual({
+      family: "King's Indian Attack",
+      variation: 'with Bf5',
+    });
+  });
+});
