@@ -367,7 +367,7 @@
   }
   .filter button {
     border: none;
-    background: white;
+    background: var(--panel);
     padding: 0.25rem 0.6rem;
     font-size: 0.85rem;
   }
@@ -376,6 +376,6 @@
   }
   .filter button[aria-checked='true'] {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
 </style>

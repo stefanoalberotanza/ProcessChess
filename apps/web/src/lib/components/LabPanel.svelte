@@ -157,7 +157,7 @@
   }
   .line li.current {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
   .num {
     color: var(--muted);
@@ -182,12 +182,12 @@
     margin: 0;
   }
   .wrong {
-    background: #f8d7da;
-    color: #7a1020;
+    background: var(--bad-bg);
+    color: var(--bad-fg);
   }
   .hint {
-    background: #e3f0fb;
-    color: #0b3a66;
+    background: var(--info-bg);
+    color: var(--info-fg);
   }
   .buttons {
     display: flex;
@@ -216,10 +216,10 @@
     border-radius: 4px;
     color: white;
     font-size: 0.8rem;
-    background: #c62828;
+    background: var(--bad);
   }
   .runs li.clean {
-    background: #2e7d32;
+    background: var(--good);
   }
   .moves {
     border-collapse: collapse;
@@ -241,14 +241,14 @@
     border-radius: 2px;
   }
   .recent .correct {
-    background: #2e7d32;
+    background: var(--good);
   }
   .recent .hint {
-    background: #b26a00;
+    background: var(--warn);
     padding: 0;
   }
   .recent .wrong {
-    background: #c62828;
+    background: var(--bad);
   }
   .muted {
     color: var(--muted);

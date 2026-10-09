@@ -87,6 +87,8 @@
     align-items: center;
     gap: 0.5rem;
     min-height: 2rem;
+    /* never wider than the board column, so long lines do not squeeze the panel beside it */
+    max-width: min(92vw, 548px);
   }
   .eco {
     font-weight: 700;
@@ -111,15 +113,15 @@
     font-size: 0.85rem;
   }
   .label {
-    background: #e3ecfa;
-    color: #1d3f73;
+    background: var(--info-bg);
+    color: var(--info-fg);
   }
   .theory {
-    background: #fff3cd;
-    color: #6b5000;
+    background: var(--warn-bg);
+    color: var(--warn-fg);
   }
   .repertoire {
-    background: #f8d7da;
-    color: #7a1020;
+    background: var(--bad-bg);
+    color: var(--bad-fg);
   }
 </style>

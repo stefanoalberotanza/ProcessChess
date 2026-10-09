@@ -71,13 +71,13 @@
     font-weight: 700;
   }
   .correct {
-    background: #2e7d32;
+    background: var(--good);
   }
   .hint {
-    background: #b26a00;
+    background: var(--warn);
   }
   .wrong {
-    background: #c62828;
+    background: var(--bad);
   }
   .stats,
   .muted {

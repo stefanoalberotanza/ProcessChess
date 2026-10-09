@@ -164,14 +164,14 @@
   }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border: none;
     border-radius: 6px;
     padding: 0.4rem 0.8rem;
     font-weight: 600;
   }
   .review {
-    background: #2e7d32;
+    background: var(--good);
     color: white;
     border: none;
     border-radius: 6px;
@@ -180,7 +180,7 @@
   }
   .mode {
     font-weight: 600;
-    color: #2e7d32;
+    color: var(--good);
   }
   kbd {
     font-size: 0.75em;
@@ -194,12 +194,12 @@
     margin: 0;
   }
   .wrong {
-    background: #f8d7da;
-    color: #7a1020;
+    background: var(--bad-bg);
+    color: var(--bad-fg);
   }
   .hint {
-    background: #e3f0fb;
-    color: #0b3a66;
+    background: var(--info-bg);
+    color: var(--info-fg);
   }
   .live {
     min-height: 1.5rem;

@@ -45,12 +45,12 @@
     width: 0.5rem;
     height: 0.5rem;
     border-radius: 50%;
-    background: #d6d9de;
+    background: var(--border);
   }
   .dot.on {
-    background: #e0a800;
+    background: var(--brass);
   }
   .mastered .dot.on {
-    background: #2e7d32;
+    background: var(--good);
   }
 </style>

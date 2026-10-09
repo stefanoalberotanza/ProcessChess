@@ -139,10 +139,10 @@
     font-family: ui-monospace, monospace;
   }
   .error {
-    color: #b00020;
+    color: var(--bad-text);
   }
   .ok {
-    color: #2e7d32;
+    color: var(--good);
   }
   .muted {
     color: var(--muted);

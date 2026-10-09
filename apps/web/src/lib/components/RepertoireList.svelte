@@ -147,7 +147,7 @@
     padding: 0.45rem 0.6rem;
     border: 1px solid var(--border);
     border-radius: 6px;
-    background: white;
+    background: var(--panel);
   }
   .rep[aria-pressed='true'] {
     border-color: var(--accent);
@@ -165,7 +165,7 @@
     font-size: 0.85rem;
   }
   .due {
-    color: #2e7d32;
+    color: var(--good);
     font-weight: 600;
     font-size: 0.85rem;
   }
@@ -191,7 +191,7 @@
   }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border: none;
     border-radius: 6px;
     padding: 0.4rem 0.8rem;

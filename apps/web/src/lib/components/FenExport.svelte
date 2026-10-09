@@ -59,7 +59,7 @@
     padding: 0.2rem 0.35rem;
   }
   .status {
-    color: #2e7d32;
+    color: var(--good);
     min-width: 4rem;
   }
 </style>

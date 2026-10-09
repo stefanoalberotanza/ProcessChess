@@ -76,7 +76,7 @@
   }
   .move[aria-current='true'] {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
   .comment {
     color: var(--muted);

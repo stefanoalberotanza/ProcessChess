@@ -133,7 +133,7 @@
     max-height: 75vh;
     border: 1px solid var(--border);
     border-radius: 6px;
-    background: white;
+    background: var(--panel);
   }
   .canvas {
     position: relative;
@@ -147,21 +147,21 @@
   }
   .edges path {
     fill: none;
-    stroke: #9aa3ad;
+    stroke: var(--muted);
   }
   .edges path.past {
     stroke: var(--accent);
     stroke-dasharray: 4 3;
   }
   .edges path.rep {
-    stroke: #2e7d32;
+    stroke: var(--good);
   }
   .edges path.good {
-    stroke: #2e7d32;
+    stroke: var(--good);
     stroke-dasharray: none;
   }
   .edges path.bad {
-    stroke: #c62828;
+    stroke: var(--bad);
     stroke-dasharray: none;
   }
   .nodes {
@@ -180,7 +180,7 @@
     padding: 3px;
     border: 2px solid transparent;
     border-radius: 6px;
-    background: white;
+    background: var(--panel);
   }
   .node:hover {
     border-color: var(--hover);
@@ -189,7 +189,7 @@
     opacity: 0.75;
   }
   .node.rep {
-    border-color: #2e7d32;
+    border-color: var(--good);
   }
   .node[aria-current='true'] {
     border-color: var(--accent);

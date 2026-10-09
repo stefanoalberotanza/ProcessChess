@@ -400,7 +400,7 @@
     align-items: center;
     gap: 0.3rem;
     border: none;
-    background: white;
+    background: var(--panel);
     padding: 0.2rem 0.55rem;
     font-size: 0.8rem;
   }
@@ -421,7 +421,7 @@
   }
   .filter button[aria-checked='true'] {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
   .crumbs {
     display: flex;
@@ -450,7 +450,7 @@
     border-radius: 8px;
     padding: 0.5rem 0.6rem;
     margin-bottom: 0.5rem;
-    background: white;
+    background: var(--panel);
   }
   .focus-head {
     display: flex;
@@ -513,7 +513,7 @@
     min-width: 2.6rem;
   }
   .in-rep {
-    color: #2e7d32;
+    color: var(--good);
     font-weight: 700;
   }
   .bar {
@@ -550,7 +550,7 @@
   }
   .primary {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border: none;
     border-radius: 6px;
     padding: 0.4rem 0.8rem;

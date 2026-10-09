@@ -690,12 +690,12 @@
   }
   .breadcrumb button[aria-current='true'] {
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
   }
   .primary {
     align-self: flex-start;
     background: var(--accent);
-    color: white;
+    color: var(--on-accent);
     border: none;
     border-radius: 6px;
     padding: 0.4rem 0.8rem;
@@ -733,7 +733,7 @@
     color: var(--muted);
   }
   .error {
-    color: #b00020;
+    color: var(--bad-text);
   }
   .import-dialog {
     width: min(92vw, 42rem);

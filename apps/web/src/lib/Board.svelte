@@ -145,10 +145,34 @@
   .board {
     position: relative;
     aspect-ratio: 1;
+    margin: 0.9rem; /* room for the frame */
   }
   .cg {
     width: 100%;
     height: 100%;
+    /* walnut frame with a brass inlay, like a physical board */
+    box-shadow:
+      0 0 0 3px #c9a24d,
+      0 0 0 13px #4a2a14,
+      0 0 0 14px #1a0e06,
+      0 14px 30px rgba(0, 0, 0, 0.65);
+    border-radius: 1px;
+  }
+  /* maple and walnut squares with a faint grain, instead of the stock brown image */
+  .cg :global(cg-board) {
+    background-color: #e3c99b;
+    background-image:
+      repeating-linear-gradient(8deg, rgba(90, 50, 20, 0.07) 0 1px, transparent 1px 5px),
+      conic-gradient(#8a5a32 25%, #e3c99b 0 50%, #8a5a32 0 75%, #e3c99b 0);
+    background-size:
+      100% 100%,
+      25% 25%;
+  }
+  .cg :global(cg-board square.last-move) {
+    background-color: rgba(201, 162, 77, 0.5);
+  }
+  .cg :global(cg-board square.selected) {
+    background-color: rgba(230, 201, 122, 0.55);
   }
   .promotion {
     position: absolute;
@@ -158,7 +182,8 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
     padding: 0.75rem;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(42, 26, 16, 0.96);
+    border: 1px solid var(--brass, #c9a24d);
     border-radius: 8px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
   }

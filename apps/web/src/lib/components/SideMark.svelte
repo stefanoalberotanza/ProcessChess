@@ -17,14 +17,14 @@
     width: 0.8rem;
     height: 0.8rem;
     border-radius: 50%;
-    border: 1.5px solid #333;
+    border: 1.5px solid #cdb98f;
     box-sizing: border-box;
     vertical-align: middle;
   }
   .w {
-    background: #fff;
+    background: #f4ead2;
   }
   .b {
-    background: #222;
+    background: #120c08;
   }
 </style>
