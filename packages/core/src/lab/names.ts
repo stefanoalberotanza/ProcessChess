@@ -1,0 +1,125 @@
+import { openingIndex } from '../openings/data';
+import type { OpeningGraph } from '../openings/graph';
+import { OpeningsNotLoadedError } from '../openings/resolve';
+
+/** "Family: Variation, Subvariation" → ["Family", "Variation", "Subvariation"]. */
+export function nameSegments(name: string): string[] {
+  const colon = name.indexOf(':');
+  if (colon === -1) return [name.trim()];
+  return [
+    name.slice(0, colon).trim(),
+    ...name
+      .slice(colon + 1)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  ];
+}
+
+/** Inverse of `nameSegments`; also the key of a name-tree node. */
+export function joinSegments(segments: readonly string[]): string {
+  const [family, ...rest] = segments;
+  return rest.length ? `${family}: ${rest.join(', ')}` : family!;
+}
+
+export interface NameNode {
+  /** Full name of this level, e.g. "Sicilian Defense: Najdorf Variation". */
+  key: string;
+  /** Last segment, e.g. "Najdorf Variation". */
+  label: string;
+  /** 0 = family. */
+  depth: number;
+  parent: string | null;
+  /** Child levels, most used first. */
+  children: string[];
+  /** True when the dataset names a position with exactly this name. */
+  own: boolean;
+  eco: string;
+  /**
+   * Moves to the position of this name (the shortest when several positions share it). For a
+   * group without a position of its own, the moves of its most used child.
+   */
+  ucis: string[];
+  /** Dataset lines that reach the position (popularity). */
+  lines: number;
+}
+
+export interface NameTree {
+  roots: string[];
+  get(key: string): NameNode | undefined;
+  /** The node of a full opening name from the dataset. */
+  nodeForName(name: string): NameNode | undefined;
+  all(): Iterable<NameNode>;
+}
+
+/**
+ * The opening names of the dataset as a hierarchy Family → Variation → Subvariation… The
+ * hierarchy is by name, not by moves: a variation may be reached through moves named after another
+ * family (transpositions) and vice versa. Needs `loadOpenings()`.
+ */
+export function buildNameTree(graph: OpeningGraph): NameTree {
+  const names = openingIndex();
+  if (!names) throw new OpeningsNotLoadedError();
+  const nodes = new Map<string, NameNode>();
+
+  const ensure = (segments: string[]): NameNode => {
+    const key = joinSegments(segments);
+    let n = nodes.get(key);
+    if (!n) {
+      const parent = segments.length > 1 ? ensure(segments.slice(0, -1)) : null;
+      n = {
+        key,
+        label: segments.at(-1)!,
+        depth: segments.length - 1,
+        parent: parent?.key ?? null,
+        children: [],
+        own: false,
+        eco: '',
+        ucis: [],
+        lines: 0,
+      };
+      nodes.set(key, n);
+      parent?.children.push(key);
+    }
+    return n;
+  };
+
+  for (const [epd, [eco, name]] of names) {
+    const graphNode = graph.nodeOf(epd);
+    if (graphNode === undefined) continue;
+    const n = ensure(nameSegments(name));
+    const ucis = graph.pathTo(graphNode);
+    if (!n.own || ucis.length < n.ucis.length) {
+      n.own = true;
+      n.eco = eco;
+      n.ucis = ucis;
+      n.lines = graph.linesThrough(graphNode);
+    }
+  }
+
+  // groups without a position of their own take their most used child; children sorted
+  const finish = (n: NameNode): void => {
+    const kids = n.children.map((k) => nodes.get(k)!);
+    kids.forEach(finish);
+    kids.sort(
+      (a, b) =>
+        b.lines - a.lines || a.ucis.length - b.ucis.length || a.label.localeCompare(b.label),
+    );
+    n.children = kids.map((k) => k.key);
+    if (!n.own && kids[0]) {
+      n.eco = kids[0].eco;
+      n.ucis = kids[0].ucis;
+      n.lines = kids[0].lines;
+    }
+  };
+  const roots = [...nodes.values()].filter((n) => n.parent === null);
+  roots.forEach(finish);
+  roots.sort((a, b) => b.lines - a.lines || a.label.localeCompare(b.label));
+
+  return {
+    roots: roots.map((r) => r.key),
+    get: (key) => nodes.get(key),
+    nodeForName: (name) => nodes.get(joinSegments(nameSegments(name))),
+    all: () => nodes.values(),
+  };
+}
