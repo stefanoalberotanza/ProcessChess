@@ -1,0 +1,12 @@
+{
+  "extends": "./.svelte-kit/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false
+  }
+}

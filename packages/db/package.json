@@ -1,0 +1,27 @@
+{
+  "name": "@processchess/db",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./memory": "./src/adapters/memory.ts",
+    "./opfs": "./src/adapters/opfs.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "db:generate": "tsx ../../scripts/db-generate.ts"
+  },
+  "dependencies": {
+    "@processchess/core": "workspace:*",
+    "@sqlite.org/sqlite-wasm": "3.53.4-build1",
+    "drizzle-orm": "^0.45.4",
+    "ulid": "^3.0.2"
+  },
+  "devDependencies": {
+    "chess.js": "1.4.0",
+    "drizzle-kit": "^0.31.11"
+  }
+}

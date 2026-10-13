@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+.svelte-kit/
+coverage/
+*.log
+.DS_Store
+.env
+*.sqlite
+test-results/
+playwright-report/
