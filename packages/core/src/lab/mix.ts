@@ -66,7 +66,8 @@ export function dailyMix(opts: {
   const lineOf = opts.lineOf ?? ((n: NameNode) => n.key);
   const seenLines = new Set<string>();
   const nodes = [...opts.tree.all()]
-    .filter((n) => n.kind === 'variation')
+    // a practised line: a variation, or an opening with no variations of its own
+    .filter((n) => n.kind === 'variation' || (n.parent === null && n.children.length === 0))
     .sort(byPopularity)
     .filter((n) => {
       const line = lineOf(n);

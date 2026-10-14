@@ -26,6 +26,7 @@ export const OPENING_SIDE_WORDS: readonly (readonly [RegExp, 'w' | 'b'])[] = [
 export function openingSide(_tree: Pick<NameTree, 'get'>, opening: NameNode): OpeningSide {
   const override = OPENING_SIDE_OVERRIDES[opening.key];
   if (override) return override;
-  for (const [words, side] of OPENING_SIDE_WORDS) if (words.test(opening.key)) return side;
+  // the own name only: a promoted style variation keeps the "…Pawn Game: " prefix in its key
+  for (const [words, side] of OPENING_SIDE_WORDS) if (words.test(opening.label)) return side;
   return opening.side ?? 'w';
 }

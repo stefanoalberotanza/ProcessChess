@@ -28,9 +28,22 @@ describe('openingSide', () => {
     expect(openingSide(tree, tree.get("Queen's Gambit")!)).toBe('w');
   });
 
+  it('reads only the own name of a promoted style variation (not the "Game" of its prefix)', () => {
+    // data/openings/d.tsv: "Queen's Pawn Game: Symmetrical Variation" 1. d4 d5 2. Nf3 Nf6 (Black's move)
+    const symmetrical = tree.nodeForName("Queen's Pawn Game: Symmetrical Variation")!;
+    expect(symmetrical.kind).toBe('opening');
+    expect(symmetrical.side).toBe('b');
+    expect(openingSide(tree, symmetrical)).toBe('b');
+  });
+
   it('falls back to the side of the defining move', () => {
     // a name with no keyword: the defining move decides
-    const plain = { ...tree.get('Sicilian Defense')!, key: 'Plain', side: 'w' as const };
+    const plain = {
+      ...tree.get('Sicilian Defense')!,
+      key: 'Plain',
+      label: 'Plain',
+      side: 'w' as const,
+    };
     expect(openingSide(tree, plain)).toBe('w');
   });
 

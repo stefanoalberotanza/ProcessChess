@@ -76,6 +76,18 @@ describe('weekRepertoire', () => {
     expect(lines[0]!.name).toBe('Sicilian Defense: Dragon Variation');
   });
 
+  it('keeps openings without variations as candidates (Bongcloud Attack)', () => {
+    const bong = [...names.all()].find((n) => n.key === 'Bongcloud Attack')!;
+    const first = {
+      id: 'first',
+      label: 'week.grouping.random',
+      pick: (c: readonly (typeof bong)[]) => c.filter((n) => n.key === 'Bongcloud Attack'),
+    };
+    expect(
+      weekRepertoire(graph, names, bong.side!, '2026-W42', first).lines.map((l) => l.name),
+    ).toEqual(['Bongcloud Attack']);
+  });
+
   it('uses the grouping it is given', () => {
     const first = { id: 'first', label: 'week.grouping.first', pick: randomGrouping.pick };
     expect(weekRepertoire(graph, names, 'b', '2026-W42', first).grouping.id).toBe('first');

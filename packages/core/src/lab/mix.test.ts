@@ -26,7 +26,7 @@ function node(
 }
 
 // opening F › openings A, B, C; each has 10 variations A0..A9 (popularity = 10 - index)
-const all: NameNode[] = [node('F', null, 1, 'opening')];
+const all: NameNode[] = [{ ...node('F', null, 1, 'opening'), children: ['A', 'B', 'C'] }];
 for (const s of ['A', 'B', 'C']) {
   all.push(node(s, 'F', 100, 'opening'));
   for (let i = 0; i < 10; i++) all.push(node(`${s}${i}`, s, 10 - i));

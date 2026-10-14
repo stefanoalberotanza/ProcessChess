@@ -41,7 +41,8 @@ export interface WeekLine {
 }
 
 /**
- * The openings of `color` for `week`: named variations whose defining move is `color`'s,
+ * The openings of `color` for `week`: named variations (and openings without variations)
+ * whose defining move is `color`'s,
  * ordered by `grouping`, the first `WEEK_SIZE` whose practice lines are distinct and not
  * prefixes of each other (so the tree has `WEEK_SIZE` leaves). Deterministic for
  * a week and colour. Needs `loadOpenings()`.
@@ -54,7 +55,11 @@ export function weekRepertoire(
   grouping: WeekGrouping = randomGrouping,
 ): { grouping: { id: string; label: string }; lines: WeekLine[] } {
   const candidates = [...tree.all()]
-    .filter((n) => n.kind === 'variation' && n.side === color)
+    .filter(
+      (n) =>
+        (n.kind === 'variation' || (n.parent === null && n.children.length === 0)) &&
+        n.side === color,
+    )
     .sort((a, b) => a.key.localeCompare(b.key)); // stable input for the PRNG
   const ordered = grouping.pick(candidates, WEEK_SIZE, seededRandom(`${week}:${color}`));
   const lines: WeekLine[] = [];

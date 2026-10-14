@@ -54,6 +54,13 @@ describe('repertoireNames', () => {
     }
   });
 
+  it("lists an opening's own node first", () => {
+    const tree = rep('1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 *');
+    const r = repertoireNames(tree, names);
+    const first = tree.nodes.get(r.nodesOf('Sicilian Defense')[0]!)!;
+    expect(first.uci).toBe('c7c5'); // B20 Sicilian Defense: 1. e4 c5
+  });
+
   it('is empty for a custom start position', () => {
     const tree = rep(
       '[SetUp "1"]\n[FEN "rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1"]\n\n1. e4 e5 *',
