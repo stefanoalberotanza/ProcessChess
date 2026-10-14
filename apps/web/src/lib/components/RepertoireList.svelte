@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { weekOf } from '@processchess/core';
+  import { type NameNode, type RepertoireNameTree, openingOf, weekOf } from '@processchess/core';
   import type { Collection } from '@processchess/db';
   import { formatDate, t } from '$lib/i18n/index.svelte';
 
@@ -21,6 +21,10 @@
     oncreate: (name: string, color: 'w' | 'b') => void;
     onimport: () => void;
     ontogglearchive: (row: RepertoireRow) => void;
+    /** The selected repertoire's openings and variations (null for a custom start). */
+    contents?: RepertoireNameTree | null;
+    /** Moves the board to a repertoire node. */
+    onjumpnode?: (nodeId: string) => void;
   }
   let {
     rows,
@@ -31,7 +35,13 @@
     oncreate,
     onimport,
     ontogglearchive,
+    contents = null,
+    onjumpnode,
   }: Props = $props();
+
+  /** A variation reads as its own segments below the opening ("Najdorf Variation"). */
+  const labelOf = (tree: RepertoireNameTree, n: NameNode) =>
+    n.kind === 'opening' ? n.key : n.key.slice(openingOf(tree, n).key.length + 2) || n.label;
 
   let creating = $state(false);
   let name = $state('');
@@ -72,10 +82,7 @@
             {#if weekOf(row.collection.source)}
               <span class="badge" data-testid="week-badge">{t('rep.weekBadge')}</span>
             {/if}
-            <span class="meta">
-              {t(`color.${row.collection.userColor}`)} ·
-              {t('rep.linesClean', { clean: row.clean, total: row.lines })}
-            </span>
+            <span class="meta">{t(`color.${row.collection.userColor}`)}</span>
             {#if row.due > 0}
               <span class="due" data-testid="due-count">{t('rep.due', { n: row.due })}</span>
             {/if}
@@ -85,6 +92,35 @@
                 : t('home.never')}
             </span>
           </button>
+          {#if row.collection.id === selectedId && contents && contents.roots.length}
+            {@const tree = contents}
+            <ul class="contents" aria-label={t('rep.contents')}>
+              {#each tree.roots as key (key)}
+                {@const o = tree.get(key)!}
+                <li>
+                  <button
+                    type="button"
+                    class="node opening"
+                    onclick={() => onjumpnode?.(tree.nodesOf(key)[0]!)}>{labelOf(tree, o)}</button
+                  >
+                  {#if o.children.length}
+                    <ul>
+                      {#each o.children as v (v)}
+                        <li>
+                          <button
+                            type="button"
+                            class="node"
+                            onclick={() => onjumpnode?.(tree.nodesOf(v)[0]!)}
+                            >{labelOf(tree, tree.get(v)!)}</button
+                          >
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
           {#if row.collection.id === selectedId || row.collection.archivedAt}
             <button type="button" class="small" onclick={() => ontogglearchive(row)}>
               {row.collection.archivedAt ? t('home.unarchive') : t('home.archive')}
@@ -125,6 +161,26 @@
 </section>
 
 <style>
+  .contents,
+  .contents ul {
+    list-style: none;
+    margin: 0.2rem 0 0.4rem;
+    padding-left: 0.8rem;
+  }
+  .contents ul {
+    margin: 0;
+  }
+  .node {
+    border: none;
+    background: none;
+    padding: 0.1rem 0.2rem;
+    color: var(--accent);
+    text-align: left;
+    font-size: 0.85rem;
+  }
+  .node.opening {
+    font-weight: 600;
+  }
   .badge {
     font-size: 0.75rem;
     padding: 0 0.4rem;

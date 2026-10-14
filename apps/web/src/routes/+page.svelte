@@ -498,6 +498,14 @@
       oncreate={(name, color) => void create(name, color)}
       onimport={openImport}
       ontogglearchive={(row) => void toggleArchive(row)}
+      contents={repNames}
+      onjumpnode={(id) =>
+        tree &&
+        goTo(
+          pathTo(tree, id)
+            .slice(1)
+            .map((n) => n.uci!),
+        )}
     />
   </aside>
 

@@ -178,8 +178,8 @@ test('week repertoires: one per colour, three lines each, selected in Training',
   const black = list.getByRole('button', { name: /^Week \d+ · Black · Random/ });
   await expect(white).toBeVisible();
   await expect(black).toBeVisible();
-  await expect(white).toContainText(/0\/[123] lines clean/);
-  await expect(black).toContainText(/0\/[123] lines clean/);
+  // the card shows no clean-lines counter
+  await expect(white).not.toContainText('lines clean');
   await expect(white.getByTestId('week-badge')).toHaveText('Week');
   // a reload in the same week creates nothing new
   await page.reload();
@@ -190,6 +190,26 @@ test('week repertoires: one per colour, three lines each, selected in Training',
     'aria-pressed',
     'true',
   );
+});
+
+test('the selected repertoire opens into its openings and variations', async ({ page }) => {
+  await ready(page);
+  await archiveWeek(page);
+  await importPgnText(page, 'Najdorf', '1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 *');
+  const contents = page.getByRole('list', { name: 'Lines of this repertoire' });
+  await expect(contents).toBeVisible();
+  // data/openings/b.tsv: B90 Sicilian Defense: Najdorf Variation
+  await expect(
+    contents.getByRole('button', { name: 'Sicilian Defense', exact: true }),
+  ).toBeVisible();
+  await contents.getByRole('button', { name: 'Najdorf Variation', exact: true }).click();
+  await expect(page.getByTestId('opening-bar')).toContainText('Najdorf Variation');
+  // deselected, it closes again
+  await page
+    .getByRole('button', { name: /^Najdorf/ })
+    .first()
+    .click();
+  await expect(contents).toHaveCount(0);
 });
 
 test('explore the ECO graph, save a line, add the book theory and train it', async ({ page }) => {
@@ -246,8 +266,6 @@ test('import the fixture, train a line until clean, reload keeps attempts and st
   await expect(dialog).toBeHidden();
   await expect(page.getByRole('status')).toContainText('Imported 2 game(s)');
   await expectSelected(page, 'E2E repertoire');
-  const rep = page.getByRole('button', { name: /E2E repertoire/ });
-  await expect(rep).toContainText(`0/${TOTAL_LINES} lines clean`);
 
   await startTraining(page);
   const cleanCounter = page.getByTestId('clean-counter');
@@ -278,7 +296,6 @@ test('import the fixture, train a line until clean, reload keeps attempts and st
   await waitSaved(page);
 
   await page.reload();
-  await expect(rep).toContainText(`1/${TOTAL_LINES} lines clean`);
   await startTraining(page);
   await expect(cleanCounter).toHaveText(`Clean lines: 1 / ${TOTAL_LINES}`);
   await page.getByRole('button', { name: 'Stop' }).click();

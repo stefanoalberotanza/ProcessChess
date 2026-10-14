@@ -1,6 +1,9 @@
 # ADR 012 — Opening classification: label › opening › variation
 
 - Status: accepted
+- Amended 2026-10-15: the name tree used by the UI has no families: openings are the roots
+  (King's / Queen's Pawn Game are not openings; their variations are). See
+  docs/superpowers/specs/2026-10-15-lines-view-design.md. Classification labels are unchanged.
 - Date: 2026-10-09
 
 ## Context

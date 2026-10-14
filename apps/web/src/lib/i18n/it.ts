@@ -206,8 +206,8 @@ export const it = {
   'rep.defaultBlack': 'Repertorio Nero',
   'week.name': 'Settimana {n} · {color} · {grouping}',
   'week.grouping.random': 'Casuale',
+  'rep.contents': 'Linee di questo repertorio',
   'rep.weekBadge': 'Settimana',
-  'rep.linesClean': '{clean}/{total} linee pulite',
   'rep.lastTrained': 'allenato {date}',
   'rep.selectFirst':
     'Seleziona o crea un repertorio a sinistra, oppure salva una linea dalla scacchiera.',

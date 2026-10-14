@@ -37,7 +37,8 @@ apps/web/                     SvelteKit app (@processchess/web)
   src/lib/lab.svelte.ts       LabController: opening lab sessions + lab history
   src/lib/week.ts             ensureWeek: weekly repertoires (White/Black) created at startup
   src/lib/i18n/               en.ts (keys), it.ts, t()
-  src/lib/components/         RepertoireList, ExplorePanel, LabPanel, Mastery, GraphPanel, MiniBoard,
+  src/lib/components/         RepertoireList, ExplorePanel, LinesView, LabPanel, Mastery, GraphPanel,
+                              MiniBoard,
                               FenExport, SideMark,
                               RepertoirePanel, DrillPanel, OpeningBar, MoveTree, MoveHistory,
                               ImportForm
@@ -53,7 +54,8 @@ packages/core/                @processchess/core — pure logic, no UI, no I/O
   src/tree/                   move tree: addLine, setMainLine, setComment, deleteSubtree, layout
   src/pgn/                    parsePgn, importPgn/treeFromPgn, exportPgn
   src/drill/                  line drill and review drill engine
-  src/lab/                    opening lab: popular openings, practice lines, recall sessions
+  src/lab/                    opening lab: name tree (Opening › Variation), openingSide,
+                              linesFrom, practice lines, recall sessions
   src/srs/                    FSRS cards (ts-fsrs), due moves and counts, daily stats helpers
   src/week/                   week ids, planWeek, weekRepertoire (weekly repertoires)
   src/position.ts             legal moves, SAN↔UCI for the UI
