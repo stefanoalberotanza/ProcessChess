@@ -242,6 +242,19 @@ describe('line cleanliness and ordering', () => {
     expect(all.queue).toEqual([mainLine!.id, sicilian!.id]);
   });
 
+  it('throughNodeIds drills the lines through any of the nodes', () => {
+    const tree = white();
+    const [mainLine, sicilian] = enumerateLines(tree);
+    const e5 = mainLine!.nodeIds[1]!; // 1...e5
+    const c5 = sicilian!.nodeIds[1]!; // 1...c5
+    expect(startLineDrill({ tree }, { throughNodeIds: [c5] }).queue).toEqual([sicilian!.id]);
+    expect(startLineDrill({ tree }, { throughNodeIds: [e5, c5] }).queue).toEqual([
+      mainLine!.id,
+      sicilian!.id,
+    ]);
+    expect(startLineDrill({ tree }, { throughNodeIds: [] }).queue).toEqual([]);
+  });
+
   it('nextLine walks the queue and ends with done', () => {
     let s = startLineDrill({ tree: white() }, {});
     s = nextLine(s);

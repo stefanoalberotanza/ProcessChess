@@ -50,6 +50,8 @@ export interface LineDrillOptions {
   lineId?: string;
   /** Only drill the lines that go through this node (e.g. the position on the board). */
   throughNodeId?: string;
+  /** Only drill the lines that go through at least one of these nodes (an opening's nodes). */
+  throughNodeIds?: readonly string[];
 }
 
 export interface DrillCollection {
@@ -176,8 +178,11 @@ export function startLineDrill(
   const passes = [...(collection.passes ?? [])];
   const threshold = options.cleanThreshold ?? 3;
   const through = options.throughNodeId;
+  const throughAny = options.throughNodeIds;
   const all = enumerateLines(tree).filter(
-    (l) => !through || through === tree.rootId || l.nodeIds.includes(through),
+    (l) =>
+      (!through || through === tree.rootId || l.nodeIds.includes(through)) &&
+      (!throughAny || throughAny.some((id) => id === tree.rootId || l.nodeIds.includes(id))),
   );
   const lines = new Map(all.map((l) => [l.id, l]));
   const isClean = (l: Line) => lineStatus(passes, l.id, threshold).clean;
