@@ -36,22 +36,30 @@ describe('nameSegments', () => {
 });
 
 describe('buildNameTree', () => {
-  it('has the three families as roots, most used first', () => {
-    expect(tree.roots.map((k) => tree.get(k)!.style).sort()).toEqual(['flank', 'king', 'queen']);
-    for (const k of tree.roots) expect(tree.get(k)).toMatchObject({ kind: 'family', depth: 0 });
+  it('has the openings as roots, most used first', () => {
+    expect(tree.roots.length).toBeGreaterThan(50);
+    for (const k of tree.roots)
+      expect(tree.get(k)).toMatchObject({ kind: 'opening', depth: 0, parent: null });
     const lines = tree.roots.map((k) => tree.get(k)!.lines);
     expect([...lines].sort((a, b) => b - a)).toEqual(lines);
   });
 
-  it('puts every dataset family under a family, as a subfamily or a variation', () => {
-    const datasetFamilies = new Set(names.map((n) => nameSegments(n)[0]!));
-    for (const f of datasetFamilies) {
-      const n = tree.nodeForName(f)!;
-      if (n.kind === 'family') continue; // the style's own name is the family itself
-      expect(['subfamily', 'variation'], f).toContain(n.kind);
-      expect(tree.get(n.parent!)!.kind, f).toBe('family');
-      expect(n.depth).toBe(1);
+  it('has only openings and variations, no families', () => {
+    for (const n of tree.all()) {
+      expect(['opening', 'variation'], n.key).toContain(n.kind);
+      expect(n.key.startsWith('style:'), n.key).toBe(false);
+      expect(n.kind === 'opening', n.key).toBe(n.parent === null);
     }
+  });
+
+  it('every dataset opening name is an opening (Sicilian Defense, Bird Opening, Bongcloud Attack)', () => {
+    const datasetOpenings = new Set(names.map((n) => nameSegments(n)[0]!));
+    for (const f of datasetOpenings) {
+      if (f === "King's Pawn Game" || f === "Queen's Pawn Game") continue;
+      expect(tree.get(f)?.kind, f).toBe('opening');
+    }
+    expect(tree.get('Bird Opening')!.kind).toBe('opening');
+    expect(tree.get('Bongcloud Attack')!.kind).toBe('opening');
   });
 
   it('nests variations under their family and sub-variations under their variation', () => {
@@ -62,11 +70,11 @@ describe('buildNameTree', () => {
       own: true,
       eco: 'B90',
       kind: 'variation',
-      depth: 2,
+      depth: 1,
     });
     expect(najdorf.children).toContain('Sicilian Defense: Najdorf Variation, English Attack');
     expect(tree.get('Sicilian Defense')!.children).toContain('Sicilian Defense: Najdorf Variation');
-    expect(tree.get('Sicilian Defense')).toMatchObject({ kind: 'subfamily', parent: 'style:king' });
+    expect(tree.get('Sicilian Defense')).toMatchObject({ kind: 'opening', parent: null });
     // the moves reach the named position
     const epd = toEpd(playLine(INITIAL_FEN, najdorf.ucis)!.fen);
     expect(openingIndex()!.get(epd)).toEqual(['B90', 'Sicilian Defense: Najdorf Variation']);
@@ -81,7 +89,7 @@ describe('buildNameTree', () => {
   });
 
   it('keeps groups that have no position of their own, reachable through a descendant', () => {
-    const groups = [...tree.all()].filter((n) => !n.own && n.kind !== 'family');
+    const groups = [...tree.all()].filter((n) => !n.own);
     expect(groups.length).toBeGreaterThan(0);
     for (const g of groups) {
       expect(g.children.length).toBeGreaterThan(0);
@@ -91,8 +99,14 @@ describe('buildNameTree', () => {
     }
   });
 
-  it('covers every name of the dataset', () => {
-    for (const n of new Set(names)) expect(tree.nodeForName(n), n).toBeDefined();
+  it("covers every name of the dataset but the style names (King's / Queen's Pawn Game)", () => {
+    for (const n of new Set(names)) {
+      if (n === "King's Pawn Game" || n === "Queen's Pawn Game") {
+        expect(tree.nodeForName(n), n).toBeUndefined();
+        continue;
+      }
+      expect(tree.nodeForName(n), n).toBeDefined();
+    }
   });
 });
 
@@ -111,57 +125,33 @@ describe('opening side', () => {
     expect(moverOfLast([])).toBeNull();
     expect(moverOfLast(['e2e4'])).toBe('w');
     expect(moverOfLast(['e2e4', 'c7c5'])).toBe('b');
-    for (const n of tree.all()) if (n.kind !== 'family') expect(n.side).toBe(moverOfLast(n.ucis));
+    for (const n of tree.all()) expect(n.side).toBe(moverOfLast(n.ucis));
   });
 });
 
-describe('family > subfamily > variation', () => {
-  const king = () => tree.get('style:king')!;
-
-  it("the style's own name is the family, not an opening (King's Pawn Game)", () => {
-    // data/openings: B00 "King's Pawn Game" 1. e4; C20 "King's Pawn Game" 1. e4 e5
-    expect(tree.nodeForName("King's Pawn Game")).toBe(king());
+describe('the style names are not openings', () => {
+  it("King's Pawn Game and Queen's Pawn Game are not in the tree", () => {
     expect(tree.get("King's Pawn Game")).toBeUndefined();
-    expect(king().ucis).toEqual(['e2e4']);
-    expect(tree.nodeForName("Queen's Pawn Game")).toBe(tree.get('style:queen'));
+    expect(tree.get("Queen's Pawn Game")).toBeUndefined();
   });
 
-  it('its variations are variations of the family, with no subfamily in between', () => {
+  it('their variations are openings of their own', () => {
     // data/openings: C20 "King's Pawn Game: King's Head Opening" 1. e4 e5 2. f3
     const head = tree.nodeForName("King's Pawn Game: King's Head Opening")!;
     expect(head).toMatchObject({
-      kind: 'variation',
-      parent: 'style:king',
-      depth: 1,
+      kind: 'opening',
+      parent: null,
+      depth: 0,
       label: "King's Head Opening",
       eco: 'C20',
       ucis: ['e2e4', 'e7e5', 'f2f3'],
     });
-    expect(king().children).toContain(head.key);
-  });
-
-  it('a dataset family without branches of its own is a variation of the family', () => {
-    // data/openings: C20 "Bongcloud Attack" 1. e4 e5 2. Ke2 (a single row)
-    expect(tree.get('Bongcloud Attack')).toMatchObject({ kind: 'variation', parent: 'style:king' });
-  });
-
-  it('a family with branches is a subfamily (Italian Game, Sicilian Defense)', () => {
-    expect(tree.get('Italian Game')).toMatchObject({ kind: 'subfamily', parent: 'style:king' });
-    expect(tree.get('Sicilian Defense')!.kind).toBe('subfamily');
-    expect(tree.get("Queen's Gambit Declined")).toMatchObject({
-      kind: 'subfamily',
-      parent: 'style:queen',
-    });
-  });
-
-  it('flank openings have no own name: English Opening is a subfamily of the flank family', () => {
-    // data/openings: A10 "English Opening" only at 1. c4
-    expect(tree.get('English Opening')).toMatchObject({ kind: 'subfamily', parent: 'style:flank' });
+    expect(tree.roots).toContain(head.key);
   });
 });
 
 describe('one-move names are labels, not openings (ADR 012)', () => {
-  it('a family named only at 1 ply is a group of its variations', () => {
+  it('an opening named only at 1 ply is a group of its variations', () => {
     const english = tree.get('English Opening')!;
     expect(english.own).toBe(false);
     expect(english.ucis.length).toBeGreaterThan(1);
@@ -169,7 +159,7 @@ describe('one-move names are labels, not openings (ADR 012)', () => {
 
   it('no opening level with sub-levels is practised as a single move', () => {
     for (const n of tree.all())
-      if (n.kind !== 'family' && n.children.length) expect(n.ucis.length, n.key).toBeGreaterThan(1);
+      if (n.children.length) expect(n.ucis.length, n.key).toBeGreaterThan(1);
   });
 
   it('every level has the style of its first move', () => {

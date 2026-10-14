@@ -24,10 +24,10 @@ function node(
   };
 }
 
-// family F › subfamilies A, B, C; each has 10 variations A0..A9 (popularity = 10 - index)
-const all: NameNode[] = [node('F', null, 1, 'family')];
+// opening F › openings A, B, C; each has 10 variations A0..A9 (popularity = 10 - index)
+const all: NameNode[] = [node('F', null, 1, 'opening')];
 for (const s of ['A', 'B', 'C']) {
-  all.push(node(s, 'F', 100, 'subfamily'));
+  all.push(node(s, 'F', 100, 'opening'));
   for (let i = 0; i < 10; i++) all.push(node(`${s}${i}`, s, 10 - i));
 }
 const tree = { all: () => all };
@@ -123,7 +123,7 @@ describe('dailyMix', () => {
   it('without history draws from the most popular variations', () => {
     const out = mix(() => undefined);
     expect(out).toHaveLength(5);
-    expect(out.every((e) => e.kind === 'new' && e.node.kind !== 'family')).toBe(true);
+    expect(out.every((e) => e.kind === 'new' && e.node.kind !== 'opening')).toBe(true);
     // the 15 most popular variations are *0..*4 (subfamilies are never offered)
     for (const e of out) expect(e.node.lines).toBeGreaterThanOrEqual(6);
   });

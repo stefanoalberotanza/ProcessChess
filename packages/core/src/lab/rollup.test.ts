@@ -18,10 +18,10 @@ function node(key: string, kind: NameNode['kind'], children: string[] = []): Nam
   };
 }
 
-// family F › subfamily S › variations V1, V2; family F also holds variation V3
+// opening F › opening S › variations V1, V2; F also holds variation V3
 const nodes = new Map<string, NameNode>([
-  ['F', node('F', 'family', ['S', 'V3'])],
-  ['S', node('S', 'subfamily', ['V1', 'V2'])],
+  ['F', node('F', 'opening', ['S', 'V3'])],
+  ['S', node('S', 'opening', ['V1', 'V2'])],
   ['V1', node('V1', 'variation')],
   ['V2', node('V2', 'variation')],
   ['V3', node('V3', 'variation')],
@@ -54,8 +54,8 @@ describe('rollupMastery', () => {
     });
   });
 
-  it('is empty for an unknown key or a lone family', () => {
-    const lone = { get: (k: string) => (k === 'X' ? node('X', 'family') : undefined) };
+  it('is empty for an unknown key or a lone opening', () => {
+    const lone = { get: (k: string) => (k === 'X' ? node('X', 'opening') : undefined) };
     expect(rollupMastery(lone, 'X', () => 9, 3)).toEqual({ total: 0, mastered: 0, started: 0 });
     expect(rollupMastery(tree, 'nope', () => 9, 3)).toEqual({ total: 0, mastered: 0, started: 0 });
   });
