@@ -33,7 +33,7 @@
   import { app, storage } from '$lib/app.svelte';
   import DrillPanel from '$lib/components/DrillPanel.svelte';
   import ExplorePanel from '$lib/components/ExplorePanel.svelte';
-  import NameAlbum from '$lib/components/NameAlbum.svelte';
+  import LinesView from '$lib/components/LinesView.svelte';
   import FenExport from '$lib/components/FenExport.svelte';
   import LabPanel from '$lib/components/LabPanel.svelte';
   import GraphPanel from '$lib/components/GraphPanel.svelte';
@@ -659,16 +659,14 @@
         >
           {#if graph && repNames && repNames.roots.length}
             <section class="album" aria-label={t('train.album')}>
-              <NameAlbum
+              <LinesView
                 {graph}
                 names={repNames}
                 {ucis}
                 summaries={lab.summaries}
                 repertoire={lab.repertoire}
-                onpractice={(queue, i) => void drillName(queue[i]?.name ?? null)}
+                onpractice={(it) => void drillName(it.name)}
                 onjump={(u) => goTo(u)}
-                practiseAll
-                neverHidden
                 pathOf={(n) => {
                   // the repertoire's own move order to the level, not the dataset's
                   const id = repNames!.nodesOf(n.key)[0];

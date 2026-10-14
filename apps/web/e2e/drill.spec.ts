@@ -37,19 +37,32 @@ async function archiveWeek(page: Page) {
   }
 }
 
-/** Opens the openings panel on the by-name archive. */
-async function explore(page: Page) {
-  await page.getByRole('tab', { name: 'Practise by name' }).click();
+/** The Lines view of the openings panel. */
+async function explore(page: Page): Promise<Locator> {
+  const lines = page.getByRole('region', { name: 'Lines' });
+  await expect(lines).toBeVisible();
+  return lines;
 }
 
-/** Enters a family of the opening lab (the roots of the by-name list); returns its list. */
-async function enterFamily(page: Page, name = "King's Pawn Games"): Promise<Locator> {
-  await explore(page);
-  await page
-    .getByRole('list', { name: 'Opening families' })
+/** The row of `name` in a group of the Lines view ("Openings" / "Variations"), all rows shown. */
+async function lineRow(page: Page, group: 'Openings' | 'Variations', name: string) {
+  const lines = await explore(page);
+  const section = lines.getByRole('region', { name: new RegExp(`^${group}`) });
+  const more = section.getByRole('button', { name: /^Show all/ });
+  if (await more.isVisible()) await more.click();
+  return section
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('button', { name: `Open ${name}`, exact: true }) });
+}
+
+/** Moves the board to the opening `name` from the Lines view; returns the Lines view. */
+async function enterOpening(page: Page, name: string): Promise<Locator> {
+  await (
+    await lineRow(page, 'Openings', name)
+  )
     .getByRole('button', { name: `Open ${name}`, exact: true })
     .click();
-  return page.getByRole('list', { name: `Variations of ${name}` });
+  return explore(page);
 }
 
 /** Opens the import dialog with the visible "Import PGN" button. */
@@ -117,6 +130,29 @@ test('the openings tab has no Today view', async ({ page }) => {
     'placeholder',
     'Search an opening or paste a FEN',
   );
+});
+
+test('the openings tab shows only Lines: openings, then the variations of the board position', async ({
+  page,
+}) => {
+  await ready(page);
+  const lines = await explore(page);
+  await expect(page.getByRole('tab', { name: /^From this position/ })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Practise by name' })).toHaveCount(0);
+  await expect(lines.getByRole('list', { name: 'Openings' })).toBeVisible();
+  await expect(lines.getByRole('list', { name: 'Variations' })).toHaveCount(0);
+  // no families, no style names
+  await expect(await lineRow(page, 'Openings', "King's Pawn Game")).toHaveCount(0);
+  await expect(await lineRow(page, 'Openings', 'Sicilian Defense')).toHaveCount(1);
+  // inside an opening: its variations, and the other openings reachable from here
+  await enterOpening(page, 'Sicilian Defense');
+  await expect(lines.getByRole('list', { name: 'Variations' })).toBeVisible();
+  await expect(
+    await lineRow(page, 'Variations', 'Sicilian Defense: Najdorf Variation'),
+  ).toHaveCount(1);
+  // no discovery: nothing is covered by "?"
+  await expect(page.getByText('?', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/discovered/)).toHaveCount(0);
 });
 
 test('a pasted FEN finds the opening whatever move order reached it', async ({ page }) => {
@@ -349,32 +385,20 @@ test('graph view: a board per node, connected to the main board and the repertoi
   await expect(nodes.locator('[aria-current="true"]')).toHaveAccessibleName(/In your repertoire/);
 });
 
-test('opening lab: practise by name, rebuild the moves, history per opening and per move', async ({
+test('opening lab: practise a line, rebuild the moves, history per opening and per move', async ({
   page,
 }) => {
   await ready(page);
-  await explore(page);
-  // the first level lists the three families; inside one, a subfamily (a container), then a
-  // variation, the only level that is practised
-  const inFamily = await enterFamily(page);
-  await inFamily.getByRole('button', { name: 'Open Sicilian Defense', exact: true }).click();
-  const focusCard = page.getByTestId('lab-focus');
-  await expect(focusCard.getByRole('button', { name: /^Practise/ })).toHaveCount(0);
-  const family = 'Sicilian Defense: Najdorf Variation';
-  await page
-    .getByRole('list', { name: 'Variations of Sicilian Defense' })
-    .getByRole('button', { name: `Open ${family}`, exact: true })
-    .click();
-  await expect(focusCard).toContainText('Najdorf Variation');
-  await expect(page.getByRole('navigation', { name: 'Opening levels' })).toContainText(
-    'Najdorf Variation',
-  );
-  await expect(focusCard.getByTestId('mastery')).toHaveAccessibleName('Not practised yet');
-  const lineText = (await focusCard.locator('.line').textContent())!.trim();
-  // "1.e4 c5 2.Nf3 …" → SAN moves to type
-  const sans = lineText.split(' ').map((m) => m.replace(/^\d+\./, ''));
+  await enterOpening(page, 'Sicilian Defense');
+  const name = 'Sicilian Defense: Najdorf Variation';
+  const row = await lineRow(page, 'Variations', name);
+  await expect(row.getByTestId('mastery')).toHaveAccessibleName('Not practised yet');
+  const sans = ((await row.getAttribute('data-line')) ?? '')
+    .trim()
+    .split(' ')
+    .map((m) => m.replace(/^\d+\./, ''));
   expect(sans.length).toBeGreaterThanOrEqual(10);
-  await focusCard.getByRole('button', { name: `Practise ${family}` }).click();
+  await row.getByRole('button', { name: `Practise ${name}` }).click();
   // both sides: switch the automatic opponent off
   await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
 
@@ -406,45 +430,32 @@ test('opening lab: practise by name, rebuild the moves, history per opening and 
   await expect(page.getByRole('row', { name: new RegExp(`^2\\.${sans[2]}`) })).toBeVisible();
   await waitSaved(page);
 
-  // back in the list the opening shows as automatic, and it survives a reload
+  // back in the list the line shows as automatic, and it survives a reload
   await page.getByRole('button', { name: 'Back to the list' }).click();
-  await expect(focusCard.getByTestId('mastery')).toHaveAccessibleName(/Automatic/);
+  await expect(
+    (await lineRow(page, 'Variations', name)).getByTestId('mastery'),
+  ).toHaveAccessibleName(/Automatic/);
   await page.reload();
-  await (
-    await enterFamily(page)
-  )
-    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
-    .click();
-  const familyRow = page
-    .getByRole('list', { name: 'Variations of Sicilian Defense' })
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('button', { name: `Open ${family}`, exact: true }) });
-  await expect(familyRow.getByTestId('mastery')).toHaveAccessibleName(/Automatic/);
-  // the family level rolls up its lines: the automatic one counts
-  const rollup = page.getByTestId('lab-focus').getByTestId('mastery-rollup');
-  await expect(rollup).toHaveAccessibleName(
-    /^[1-9]\d* of \d+ lines automatic \([1-9]\d* practised\)$/,
-  );
-  await expect(rollup).toHaveText(/^[1-9]\d* \/ \d+ lines$/);
+  await enterOpening(page, 'Sicilian Defense');
+  await expect(
+    (await lineRow(page, 'Variations', name)).getByTestId('mastery'),
+  ).toHaveAccessibleName(/Automatic/);
 
   // the per-edge history colours the graph: the practised first move is green
   await page.getByRole('tab', { name: 'Graph' }).click();
   await expect(page.locator('.edges path.good').first()).toBeAttached();
 });
 
-test('opening lab: levels follow the board', async ({ page }) => {
+test('lines follow the board', async ({ page }) => {
   await ready(page);
-  await explore(page);
   const levels = page.getByRole('navigation', { name: 'Opening levels' });
-  await (
-    await enterFamily(page)
-  )
-    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
-    .click();
+  await enterOpening(page, 'Sicilian Defense');
   await expect(page.getByTestId('opening-bar')).toContainText('Sicilian Defense');
-  await page
-    .getByRole('list', { name: 'Variations of Sicilian Defense' })
-    .getByRole('button', { name: 'Open Sicilian Defense: Najdorf Variation', exact: true })
+  const najdorf = 'Sicilian Defense: Najdorf Variation';
+  await (
+    await lineRow(page, 'Variations', najdorf)
+  )
+    .getByRole('button', { name: `Open ${najdorf}`, exact: true })
     .click();
   await expect(levels).toContainText('Najdorf Variation');
   await expect(page.getByTestId('opening-bar')).toContainText('Najdorf Variation');
@@ -452,47 +463,11 @@ test('opening lab: levels follow the board', async ({ page }) => {
   await page.keyboard.press('ArrowLeft');
   await page.keyboard.press('ArrowLeft');
   await expect(levels.locator('[aria-current="true"]')).not.toHaveText('Najdorf Variation');
-  // the breadcrumb goes back up
+  // the breadcrumb goes back to the start
   await levels.getByRole('button', { name: 'All openings' }).click();
-  await expect(page.getByRole('list', { name: 'Opening families' })).toBeVisible();
   await expect(page.getByTestId('opening-bar')).toContainText('Starting position');
-});
-
-test('opening lab: family > subfamily > variation, one-move names are not openings', async ({
-  page,
-}) => {
-  await ready(page);
-  await explore(page);
-  const families = page.getByRole('list', { name: 'Opening families' });
-  const levels = page.getByRole('navigation', { name: 'Opening levels' });
-  // the roots are the three families; the style's own name is not an opening
-  await expect(
-    families.getByRole('button', { name: "Open King's Pawn Games", exact: true }),
-  ).toBeVisible();
-  await expect(
-    families.getByRole('button', { name: "Open Queen's Pawn Games", exact: true }),
-  ).toBeVisible();
-  await expect(
-    families.getByRole('button', { name: "Open King's Pawn Game", exact: true }),
-  ).toHaveCount(0);
-  await families.getByRole('button', { name: "Open King's Pawn Games", exact: true }).click();
-  await expect(page.getByTestId('lab-focus')).toContainText("King's Pawn Games");
-  await expect(page.getByRole('button', { name: 'Practise this opening' })).toHaveCount(0);
-  // inside: subfamilies and variations side by side
-  const inside = page.getByRole('list', { name: "Variations of King's Pawn Games" });
-  await expect(
-    inside.getByRole('button', { name: 'Open Sicilian Defense', exact: true }),
-  ).toContainText('Subfamily');
-  await page
-    .getByRole('region', { name: 'Practise by name' })
-    .getByRole('button', { name: /^Show all/ })
-    .click();
-  await expect(
-    inside.getByRole('button', { name: "Open King's Pawn Game: King's Head Opening", exact: true }),
-  ).toContainText('Variation');
-  // the breadcrumb goes back to the family level
-  await inside.getByRole('button', { name: 'Open Sicilian Defense', exact: true }).click();
-  await expect(levels).toContainText("King's Pawn Games");
+  await expect(page.getByRole('list', { name: 'Openings' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Variations' })).toHaveCount(0);
 });
 
 test('exports the FEN of the board position', async ({ page, context }) => {
@@ -509,41 +484,31 @@ test('exports the FEN of the board position', async ({ page, context }) => {
   );
 });
 
-test('opening lab: White and Black openings are marked, filtered and practised from their side', async ({
+test('openings are marked by owner, filtered by side and practised from their side', async ({
   page,
 }) => {
   await ready(page);
-  await explore(page);
-  const families = await enterFamily(page);
-  // data/openings: "Sicilian Defense" is 1.e4 c5 (Black), "Italian Game" ends with 3.Bc4 (White)
-  const row = (name: string) =>
-    families
-      .getByRole('listitem')
-      .filter({ has: page.getByRole('button', { name: `Open ${name}`, exact: true }) });
-  await expect(row('Sicilian Defense').getByRole('img', { name: 'Black opening' })).toBeVisible();
-  await expect(row('Italian Game').getByRole('img', { name: 'White opening' })).toBeVisible();
+  // Sicilian Defense is Black's, Bird Opening White's, Ruy Lopez both sides' (opening-side.ts)
+  const sicilian = await lineRow(page, 'Openings', 'Sicilian Defense');
+  await expect(sicilian.getByRole('img', { name: 'Black opening' })).toBeVisible();
+  const bird = await lineRow(page, 'Openings', 'Bird Opening');
+  await expect(bird.getByRole('img', { name: 'White opening' })).toBeVisible();
+  const ruy = await lineRow(page, 'Openings', 'Ruy Lopez');
+  await expect(ruy.getByRole('img', { name: 'White opening' })).toBeVisible();
+  await expect(ruy.getByRole('img', { name: 'Black opening' })).toBeVisible();
 
   await page.getByRole('radio', { name: 'Black' }).click();
-  await expect(families.locator('[data-side="w"]')).toHaveCount(0);
-  await expect(families.locator('[data-side="b"]').first()).toBeVisible();
-  await page.getByRole('radio', { name: 'White' }).click();
-  await expect(families.locator('[data-side="b"]')).toHaveCount(0);
+  await expect(await lineRow(page, 'Openings', 'Bird Opening')).toHaveCount(0);
+  await expect(await lineRow(page, 'Openings', 'Ruy Lopez')).toHaveCount(1);
+  await expect(await lineRow(page, 'Openings', 'Sicilian Defense')).toHaveCount(1);
   await page.getByRole('radio', { name: 'All', exact: true }).click();
 
-  // practising a Black opening (a variation: subfamilies are containers) shows the board from
-  // Black's side
-  await families.getByRole('button', { name: 'Open Sicilian Defense', exact: true }).click();
-  await page
-    .getByRole('list', { name: 'Variations of Sicilian Defense' })
-    .getByRole('button', { name: 'Open Sicilian Defense: Najdorf Variation', exact: true })
-    .click();
-  const plies = ((await page.getByTestId('lab-focus').locator('.line').textContent()) ?? '')
-    .trim()
-    .split(' ').length;
-  await page
-    .getByTestId('lab-focus')
-    .getByRole('button', { name: 'Practise Sicilian Defense: Najdorf Variation' })
-    .click();
+  // practising a Black line shows the board from Black's side
+  await enterOpening(page, 'Sicilian Defense');
+  const name = 'Sicilian Defense: Najdorf Variation';
+  const row = await lineRow(page, 'Variations', name);
+  const plies = ((await row.getAttribute('data-line')) ?? '').trim().split(' ').length;
+  await row.getByRole('button', { name: `Practise ${name}` }).click();
   await expect(page.locator('.cg-wrap.orientation-black')).toBeVisible();
   // the automatic opponent (on by default) plays White's moves: 1.e4 is already on the board
   const auto = page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' });
@@ -566,26 +531,17 @@ test('"out of theory" only appears off the book, not on unnamed book positions',
   page,
 }) => {
   await ready(page);
-  await explore(page);
   // an Indian Defense practice line: its positions are on book lines, named or not
-  await (
-    await enterFamily(page, "Queen's Pawn Games")
-  )
-    .getByRole('button', { name: 'Open Indian Defense', exact: true })
-    .click();
-  // Indian Defense is a container: practise its most used variation
-  const variation = page
-    .getByRole('list', { name: 'Variations of Indian Defense' })
-    .getByRole('button', { name: /^Open / })
-    .first();
-  const name = ((await variation.getAttribute('aria-label')) ?? '').replace(/^Open /, '');
-  await variation.click();
-  const focusCard = page.getByTestId('lab-focus');
-  const sans = ((await focusCard.locator('.line').textContent()) ?? '')
+  const lines = await enterOpening(page, 'Indian Defense');
+  const row = lines.getByRole('list', { name: 'Variations' }).getByRole('listitem').first();
+  const name = (
+    (await row.getByRole('button', { name: /^Open / }).getAttribute('aria-label')) ?? ''
+  ).replace(/^Open /, '');
+  const sans = ((await row.getAttribute('data-line')) ?? '')
     .trim()
     .split(' ')
     .map((m) => m.replace(/^\d+\./, ''));
-  await focusCard.getByRole('button', { name: `Practise ${name}`, exact: true }).click();
+  await row.getByRole('button', { name: `Practise ${name}`, exact: true }).click();
   await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
   for (const san of sans) {
     await playSan(page, san);
@@ -603,128 +559,11 @@ test('"out of theory" only appears off the book, not on unnamed book positions',
   await expect(page.getByTestId('out-of-theory')).toBeVisible();
 });
 
-test('from this position: every dictionary branch, grouped, variations on demand', async ({
-  page,
-}) => {
-  await ready(page);
-  // data/openings/c.tsv: after 1.e4 e5 2.Nf3 come 2...Nc6 (King's Knight Opening: Normal
-  // Variation), 2...Nf6 (Petrov's Defense), 2...d6 (Philidor Defense)
-  for (const san of ['e4', 'e5', 'Nf3']) await playSan(page, san);
-  await expect(page.getByRole('tab', { name: /^From this position/ })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
-  const groups = page.getByRole('list', { name: 'From this position' });
-  await expect(
-    groups.getByRole('button', { name: "Open Petrov's Defense", exact: true }),
-  ).toBeVisible();
-  await expect(
-    groups.getByRole('button', { name: 'Open Philidor Defense', exact: true }),
-  ).toBeVisible();
-  const knight = groups.getByRole('button', { name: "Open King's Knight Opening", exact: true });
-  await expect(knight).toContainText('2…Nc6');
-  // the Ruy Lopez comes one name later (after 2...Nc6)
-  await expect(groups.getByRole('button', { name: 'Open Ruy Lopez', exact: true })).toHaveCount(0);
-
-  await page.getByRole('button', { name: /^Show variations/ }).click();
-  const variations = page.getByRole('list', { name: 'Variations from this position' });
-  const normal = variations.getByRole('button', {
-    name: "Open King's Knight Opening: Normal Variation",
-    exact: true,
-  });
-  await expect(normal).toContainText('2…Nc6');
-  await normal.click();
-  await expect(page.getByTestId('opening-bar')).toContainText('Normal Variation');
-  // one move further, the branches follow the board: now the Ruy Lopez is there
-  await expect(groups.getByRole('button', { name: 'Open Ruy Lopez', exact: true })).toContainText(
-    '3.Bb5',
-  );
-});
-
-test('from this position works after a transposition (Scotch Game by 1.Nf3)', async ({ page }) => {
-  await ready(page);
-  // 1.Nf3 Nc6 2.e4 e5 3.d4 is the C44 Scotch Game position, off the dataset's move order
-  for (const san of ['Nf3', 'Nc6', 'e4', 'e5', 'd4']) await playSan(page, san);
-  await expect(page.getByRole('tab', { name: /^From this position/ })).toBeEnabled();
-  await expect(page.getByRole('tab', { name: /^From this position/ })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
-  await expect(page.getByRole('list', { name: 'From this position' })).toContainText('Scotch Game');
-});
-
-test('from this position is off for a collection with a custom start', async ({ page }) => {
-  await ready(page);
-  await explore(page);
-  // standard position without the a2 pawn: moves are not from the initial position
-  await importPgnText(
-    page,
-    'Custom start',
-    '[SetUp "1"]\n[FEN "rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1"]\n\n1. e4 e5 *',
-  );
-  await page.getByRole('tab', { name: 'Openings' }).click();
-  await expect(page.getByRole('heading', { name: 'Practise by name' })).toBeVisible();
-  await expect(page.getByRole('list', { name: 'From this position' })).toHaveCount(0);
-  await expect(page.getByRole('tab', { name: /^From this position/ })).toBeDisabled();
-});
-
-test('subfamilies are containers; a variation run does not tick its neighbours', async ({
-  page,
-}) => {
-  await ready(page);
-  await archiveWeek(page);
-  await explore(page);
-  await page.getByRole('searchbox').fill('Caro-Kann Defense');
-  await page
-    .getByRole('list', { name: 'Openings found' })
-    .getByRole('button', { name: 'Open Caro-Kann Defense', exact: true })
-    .first()
-    .click();
-  const focusCard = page.getByTestId('lab-focus');
-  await expect(focusCard).toContainText('Caro-Kann Defense');
-  await expect(focusCard.getByRole('button', { name: /^Practise/ })).toHaveCount(0);
-  await expect(focusCard.getByTestId('mastery-rollup')).toBeVisible();
-
-  // practise the Advance Variation to the end
-  const variations = page.getByRole('list', { name: 'Variations of Caro-Kann Defense' });
-  await variations
-    .getByRole('button', { name: 'Open Caro-Kann Defense: Advance Variation', exact: true })
-    .click();
-  const sans = (await focusCard.locator('.line').textContent())!
-    .trim()
-    .split(' ')
-    .map((m) => m.replace(/^\d+\./, ''));
-  await focusCard
-    .getByRole('button', { name: 'Practise Caro-Kann Defense: Advance Variation' })
-    .click();
-  await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
-  for (const san of sans) await playSan(page, san);
-  await expect(page.getByTestId('lab-progress')).toHaveText('Opening complete');
-  await waitSaved(page);
-  await page.getByRole('button', { name: 'Back to the list' }).click();
-  // its own sub-variations are untouched (the list title uses the level's short label)
-  const subs = page.getByRole('list', { name: 'Variations of Advance Variation' });
-  for (const m of await subs.getByTestId('mastery').all())
-    await expect(m).toHaveAccessibleName('Not practised yet');
-});
-
 test('add a variation to the repertoire from the openings panel', async ({ page }) => {
   await ready(page);
-  await explore(page);
-  await (
-    await enterFamily(page)
-  )
-    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
-    .click();
-  // a subfamily is a container: nothing to add
-  await expect(
-    page.getByTestId('lab-focus').getByRole('button', { name: /to the repertoire$/ }),
-  ).toHaveCount(0);
+  await enterOpening(page, 'Sicilian Defense');
   const name = 'Sicilian Defense: Najdorf Variation';
-  const row = page
-    .getByRole('list', { name: 'Variations of Sicilian Defense' })
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('button', { name: `Open ${name}`, exact: true }) });
+  const row = await lineRow(page, 'Variations', name);
   await row.getByRole('button', { name: `Add ${name} to the repertoire` }).click();
   // a Black opening goes to the Black repertoire, created and selected
   await expectSelected(page, 'Black repertoire');
@@ -733,133 +572,19 @@ test('add a variation to the repertoire from the openings panel', async ({ page 
   await expect(row.getByTitle('In your repertoire')).toBeVisible();
 });
 
-test('the album uncovers a variation once practised', async ({ page }) => {
-  await ready(page);
-  await archiveWeek(page);
-  await (
-    await enterFamily(page)
-  )
-    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
-    .click();
-  const progress = page.getByTestId('album-progress');
-  await expect(progress).toHaveText(/^0 \/ \d+ discovered$/);
-  const name = 'Sicilian Defense: Najdorf Variation';
-  const tile = page
-    .getByRole('list', { name: 'Variations of Sicilian Defense' })
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('button', { name: `Open ${name}`, exact: true }) });
-  // covered until practised: a board and a question mark
-  await expect(tile.locator('svg')).toBeVisible();
-  await expect(tile.locator('.label')).toHaveText('?');
-  // depth: the Najdorf is named after 5.Nc3 a6 (data/openings/b.tsv B90)
-  await expect(tile.getByTestId('tile-depth')).toHaveText('move 5');
-  await expect(page.getByTestId('album-depth')).toHaveCount(0);
-
-  await tile.getByRole('button', { name: `Open ${name}`, exact: true }).click();
-  const focusCard = page.getByTestId('lab-focus');
-  const sans = (await focusCard.locator('.line').textContent())!
-    .trim()
-    .split(' ')
-    .map((m) => m.replace(/^\d+\./, ''));
-  await focusCard.getByRole('button', { name: `Practise ${name}` }).click();
-  await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
-  for (const san of sans) await playSan(page, san);
-  await expect(page.getByTestId('lab-progress')).toHaveText('Opening complete');
-  await waitSaved(page);
-  await page.getByRole('button', { name: 'Back to the list' }).click();
-  await page
-    .getByRole('navigation', { name: 'Opening levels' })
-    .getByRole('button', { name: 'Sicilian Defense', exact: true })
-    .click();
-  await expect(tile.locator('.label')).toHaveText('Najdorf Variation');
-  await expect(progress).toHaveText(/^1 \/ \d+ discovered$/);
-  await expect(page.getByTestId('album-depth')).toHaveText('deepest: move 5');
-});
-
-test('leaf variations (nothing else follows in the dictionary) are marked', async ({ page }) => {
-  await ready(page);
-  await (
-    await enterFamily(page)
-  )
-    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
-    .click();
-  const tiles = page
-    .getByRole('list', { name: 'Variations of Sicilian Defense' })
-    .getByRole('listitem');
-  const tile = (name: string) =>
-    tiles.filter({ has: page.getByRole('button', { name: `Open ${name}`, exact: true }) });
-  // the Najdorf has sub-variations (data/openings/b.tsv): not a leaf
-  await expect(tile('Sicilian Defense: Najdorf Variation').getByTitle(/^Leaf/)).toHaveCount(0);
-  await page
-    .getByRole('region', { name: 'Practise by name' })
-    .getByRole('button', { name: /^Show all/ })
-    .click();
-  // data/openings/b.tsv: the Open Sicilian goes on into other Sicilian names; the Bowdler
-  // Attack (1.e4 c5 2.Bc4) leads to no other name
-  await expect(tile('Sicilian Defense: Open').getByTitle(/^Leaf/)).toHaveCount(0);
-  await expect(tile('Sicilian Defense: Bowdler Attack').getByTitle(/^Leaf/)).toBeVisible();
-});
-
-test('from this position: a group opens its variations where they diverge; main line', async ({
-  page,
-}) => {
-  await ready(page);
-  for (const san of ['e4', 'e5', 'Nf3']) await playSan(page, san);
-  const groups = page.getByRole('list', { name: 'From this position' });
-  // data/openings/c.tsv: the King's Pawn Game variations diverge at once (2...f6, 2...Bc5, …):
-  // the board stays, the group's variations open
-  await groups.getByRole('button', { name: "Open King's Pawn Game", exact: true }).click();
-  await expect(page.getByTestId('opening-bar')).toContainText("King's Knight Opening");
-  const variations = page.getByRole('list', { name: 'Variations from this position' });
-  await expect(variations.getByRole('listitem')).toHaveCount(4);
-  await expect(
-    variations.getByRole('listitem').filter({ hasNotText: "King's Pawn Game" }),
-  ).toHaveCount(0);
-  // the group's main line is its most played variation
-  await groups
-    .getByRole('button', { name: "Practise the main line of King's Pawn Game", exact: true })
-    .click();
-  await expect(page.getByTestId('lab-progress')).toBeVisible();
-});
-
-test('from this position: a group shows whose openings it leads to, without a misleading count', async ({
-  page,
-}) => {
-  await ready(page);
-  for (const san of ['e4', 'e5']) await playSan(page, san);
-  const groups = page.getByRole('list', { name: 'From this position' });
-  const knight = groups
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('button', { name: "Open King's Knight Opening", exact: true }) });
-  // the group stops at 2.Nf3, but leads on to many openings: no "1 variation" count
-  await expect(knight).not.toContainText(/variation/i);
-  // after 2.Nf3 come White openings (Ruy Lopez) and Black ones (Petrov's Defense)
-  await expect(knight.getByRole('img', { name: 'White opening' })).toBeVisible();
-  await expect(knight.getByRole('img', { name: 'Black opening' })).toBeVisible();
-});
-
 test('practising a repertoire variation in the lab reviews its FSRS cards', async ({ page }) => {
   await ready(page);
   await archiveWeek(page);
-  await (
-    await enterFamily(page)
-  )
-    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
-    .click();
+  await enterOpening(page, 'Sicilian Defense');
   const name = 'Sicilian Defense: Najdorf Variation';
-  const row = page
-    .getByRole('list', { name: 'Variations of Sicilian Defense' })
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('button', { name: `Open ${name}`, exact: true }) });
+  const row = await lineRow(page, 'Variations', name);
   await row.getByRole('button', { name: `Add ${name} to the repertoire` }).click();
   await expectSelected(page, 'Black repertoire');
-  await row.getByRole('button', { name: `Open ${name}`, exact: true }).click();
-  const focusCard = page.getByTestId('lab-focus');
-  const sans = (await focusCard.locator('.line').textContent())!
+  const sans = ((await row.getAttribute('data-line')) ?? '')
     .trim()
     .split(' ')
     .map((m) => m.replace(/^\d+\./, ''));
-  await focusCard.getByRole('button', { name: `Practise ${name}` }).click();
+  await row.getByRole('button', { name: `Practise ${name}` }).click();
   await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
   for (const san of sans) await playSan(page, san);
   await expect(page.getByTestId('lab-progress')).toHaveText('Opening complete');
@@ -871,12 +596,10 @@ test('practising a repertoire variation in the lab reviews its FSRS cards', asyn
   // back in the openings, the variation's progress is its FSRS state (ADR 013): moves answered
   // this fast are rated Easy, so FSRS schedules them as already known (next review in days)
   await page.goto('/');
-  await (
-    await enterFamily(page)
-  )
-    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
-    .click();
-  await expect(row.getByTestId('mastery')).toHaveAccessibleName('In your repertoire: known');
+  await enterOpening(page, 'Sicilian Defense');
+  await expect(
+    (await lineRow(page, 'Variations', name)).getByTestId('mastery'),
+  ).toHaveAccessibleName('In your repertoire: known');
 });
 
 test('Training can be left with no repertoire selected', async ({ page }) => {
