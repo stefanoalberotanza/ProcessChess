@@ -937,3 +937,44 @@ test('a custom-start repertoire keeps the plain training screen', async ({ page 
   await expect(page.getByRole('region', { name: 'Openings of this repertoire' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Train all lines/ })).toBeVisible();
 });
+
+test.describe('training album on a transposed repertoire', () => {
+  // 1.Nf3 Nc6 2.e4 e5 3.d4 is the C44 Scotch Game position, off the dataset's move order
+  async function openTransposed(page: Page) {
+    await ready(page);
+    await archiveWeek(page);
+    await importPgnText(page, 'Scotch by Nf3', '1. Nf3 Nc6 2. e4 e5 3. d4 *');
+    await page.getByRole('tab', { name: 'Training' }).click();
+    return page.getByRole('region', { name: 'Openings of this repertoire' });
+  }
+
+  test('a family can be drilled as a whole', async ({ page }) => {
+    const album = await openTransposed(page);
+    await album
+      .getByRole('button', { name: /^Practise / })
+      .first()
+      .click();
+    await expect(page.getByTestId('clean-counter')).toBeVisible();
+  });
+
+  test('studied openings are never shown as undiscovered', async ({ page }) => {
+    const album = await openTransposed(page);
+    for (let i = 0; i < 6; i++) {
+      const open = album.getByRole('button', { name: /^Open / });
+      if ((await open.count()) === 0) break;
+      await expect(album.locator('.tile .label', { hasText: /^\?$/ })).toHaveCount(0);
+      await open.first().click();
+    }
+    await expect(album.locator('.tile .label', { hasText: /^\?$/ })).toHaveCount(0);
+  });
+
+  test('entering a level keeps the board on the repertoire', async ({ page }) => {
+    const album = await openTransposed(page);
+    for (let i = 0; i < 6; i++) {
+      const open = album.getByRole('button', { name: /^Open / });
+      if ((await open.count()) === 0) break;
+      await open.first().click();
+    }
+    await expect(page.getByRole('button', { name: /^Train from this position/ })).toBeVisible();
+  });
+});

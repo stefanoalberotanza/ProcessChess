@@ -382,7 +382,7 @@
   /** Drills the repertoire lines under the opening `name`. */
   async function drillName(name: string | null) {
     if (!tree || !selectedId || !repNames || !name) return;
-    const level = repNames.nodeForName(name);
+    const level = repNames.get(name) ?? repNames.nodeForName(name);
     if (!level) return;
     await ctl.start(selectedId, tree, { throughNodeIds: repNames.nodesOf(level.key) });
   }
@@ -667,6 +667,17 @@
                 repertoire={lab.repertoire}
                 onpractice={(queue, i) => void drillName(queue[i]?.name ?? null)}
                 onjump={(u) => goTo(u)}
+                practiseAll
+                neverHidden
+                pathOf={(n) => {
+                  // the repertoire's own move order to the level, not the dataset's
+                  const id = repNames!.nodesOf(n.key)[0];
+                  return id && tree
+                    ? pathTo(tree, id)
+                        .slice(1)
+                        .map((x) => x.uci!)
+                    : n.ucis;
+                }}
               />
             </section>
           {/if}

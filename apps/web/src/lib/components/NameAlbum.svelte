@@ -43,6 +43,12 @@
     inRepertoire?: (line: string[]) => boolean;
     /** Controls shown next to the level navigation (Explore: the side filter). */
     header?: Snippet;
+    /** Training: ▶ on every level (a family drills all its lines), not only on variations. */
+    practiseAll?: boolean;
+    /** Training: every level shown is studied, never covered by "?". */
+    neverHidden?: boolean;
+    /** Training: the board path of a level (the repertoire's own move order). */
+    pathOf?: (n: NameNode) => string[];
   }
   let {
     graph,
@@ -56,6 +62,9 @@
     onadd,
     inRepertoire,
     header,
+    practiseAll = false,
+    neverHidden = false,
+    pathOf,
   }: Props = $props();
 
   const LEVEL_SIZE = 12;
@@ -91,7 +100,7 @@
   const nameOf = (n: NameNode) => (n.kind === 'family' ? labelOf(n) : n.key);
   /** Practise `queue[i]` with the variations of `queue` as the session queue. */
   function practise(queue: LabItem[], i: number) {
-    const only = queue.filter((x) => isVariationIn(names, x.name));
+    const only = practiseAll ? queue : queue.filter((x) => isVariationIn(names, x.name));
     const at = only.indexOf(queue[i]!);
     if (at !== -1) onpractice(only, at);
   }
@@ -125,7 +134,7 @@
 
   /** Shows the level `n` (null: the top) and moves the board to it. */
   export function enter(n: NameNode | null) {
-    const target = n ? n.ucis : [];
+    const target = n ? (pathOf?.(n) ?? n.ucis) : [];
     manual = { key: n?.key ?? null, at: target.join(' ') };
     showAll = false;
     onjump(target);
@@ -138,7 +147,7 @@
   function tileState(n: NameNode, i: number): 'folder' | 'hidden' | 'found' | 'known' {
     if (n.kind !== 'variation') return 'folder';
     const streak = streakOfLine(levelItems[i]!.line, n.side);
-    if (streak === undefined) return 'hidden';
+    if (streak === undefined) return neverHidden ? 'found' : 'hidden';
     return streak >= MASTERED_STREAK ? 'known' : 'found';
   }
   const album = $derived(focus ? rollupOf(focus) : null);
@@ -213,7 +222,7 @@
         {#if focus.children.length}<MasteryRollup rollup={rollupOf(focus)} />{/if}
       </div>
       <p class="line">{sanLine(focus.kind === 'variation' ? focusItem.line : focus.ucis)}</p>
-      {#if focus.kind === 'variation'}
+      {#if focus.kind === 'variation' || practiseAll}
         <button
           type="button"
           class="primary"
@@ -222,6 +231,8 @@
         >
           ▶ {t('lab.practiseThis')}
         </button>
+      {/if}
+      {#if focus.kind === 'variation'}
         {#if !inRepertoire || !onadd}{:else if inRepertoire(focusItem.line)}
           <span class="in-rep" title={t('explore.inRepertoire')}>✓</span>
         {:else}
@@ -290,11 +301,11 @@
           </button>
           <div class="tile-foot">
             {#if n.children.length}<MasteryRollup rollup={rollupOf(n)} />{/if}
-            {#if n.kind === 'variation'}
-              {#if state !== 'hidden'}<Mastery
-                  summary={summaries.get(lineKey(levelItems[i]!.line))}
-                  srs={srsOf(levelItems[i]!.line, n.side)}
-                />{/if}
+            {#if n.kind === 'variation' && state !== 'hidden'}<Mastery
+                summary={summaries.get(lineKey(levelItems[i]!.line))}
+                srs={srsOf(levelItems[i]!.line, n.side)}
+              />{/if}
+            {#if n.kind === 'variation' || practiseAll}
               <button
                 type="button"
                 class="play"
