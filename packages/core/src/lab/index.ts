@@ -4,3 +4,4 @@ export * from './recall';
 export * from './mix';
 export * from './repertoire-names';
 export * from './opening-side';
+export * from './lines';
