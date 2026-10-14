@@ -14,7 +14,12 @@ async function waitSaved(page: Page) {
 
 test('trained moves become due, are reviewed and show up in the statistics', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByTestId('empty-state')).toBeVisible();
+  // storage ready, this week's repertoires created
+  await expect(
+    page
+      .getByRole('region', { name: 'Repertoires' })
+      .getByRole('button', { name: /^Week \d+ · White/ }),
+  ).toBeVisible();
   await page.getByRole('button', { name: /import pgn/i }).click();
   const dialog = page.getByRole('dialog', { name: 'Import PGN' });
   await dialog.getByLabel('Name', { exact: true }).fill('Italian');

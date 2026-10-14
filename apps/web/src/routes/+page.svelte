@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ensureWeek } from '$lib/week';
   import {
     INITIAL_FEN,
     type OpeningGraph,
@@ -13,6 +14,8 @@
     exportPgn,
     lineStatus,
     loadOpeningGraph,
+    weekId,
+    weekSource,
     nodeAtPath,
     parseUci,
     pathTo,
@@ -101,16 +104,18 @@
   $effect(() => {
     if (!app.ready || started) return;
     started = true;
-    void loadOpeningGraph().then((g) => (graph = g));
-    void lab.refresh();
-    void refresh().then(() => {
+    void (async () => {
+      const g = await loadOpeningGraph();
+      graph = g;
+      await ensureWeek(storage(), g);
+      void lab.refresh();
+      await refresh();
       const c = initialParams.get('c');
       if (c && rows.some((r) => r.collection.id === c)) {
-        void select(c).then(() => {
-          if (tab === 'train' && initialParams.get('mode') === 'review') void startReview();
-        });
+        await select(c);
+        if (tab === 'train' && initialParams.get('mode') === 'review') void startReview();
       }
-    });
+    })();
   });
 
   // keep the URL shareable: /?c=<collection>&tab=<tab>
@@ -158,6 +163,14 @@
       lastShowArchived = showArchived;
       void refresh();
     }
+  });
+
+  // Training opens on this week's White repertoire when nothing is selected
+  $effect(() => {
+    if (tab !== 'train' || selectedId || !loaded) return;
+    const source = weekSource(weekId(new Date()));
+    const week = rows.find((r) => r.collection.source === source && r.collection.userColor === 'w');
+    if (week && !week.collection.archivedAt) void select(week.collection.id);
   });
 
   async function select(id: string | null) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { weekOf } from '@processchess/core';
   import type { Collection } from '@processchess/db';
   import { formatDate, t } from '$lib/i18n/index.svelte';
 
@@ -68,6 +69,9 @@
             onclick={() => onselect(row.collection.id === selectedId ? null : row.collection.id)}
           >
             <span class="name">{row.collection.name}</span>
+            {#if weekOf(row.collection.source)}
+              <span class="badge" data-testid="week-badge">{t('rep.weekBadge')}</span>
+            {/if}
             <span class="meta">
               {t(`color.${row.collection.userColor}`)} ·
               {t('rep.linesClean', { clean: row.clean, total: row.lines })}
@@ -121,6 +125,13 @@
 </section>
 
 <style>
+  .badge {
+    font-size: 0.75rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--on-accent);
+  }
   h2 {
     font-size: 1rem;
     margin: 0 0 0.5rem;

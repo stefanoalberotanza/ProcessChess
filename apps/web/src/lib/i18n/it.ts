@@ -224,6 +224,9 @@ export const it = {
   'rep.namePlaceholder': 'es. Il mio 1.e4',
   'rep.defaultWhite': 'Repertorio Bianco',
   'rep.defaultBlack': 'Repertorio Nero',
+  'week.name': 'Settimana {n} · {color} · {grouping}',
+  'week.grouping.random': 'Casuale',
+  'rep.weekBadge': 'Settimana',
   'rep.linesClean': '{clean}/{total} linee pulite',
   'rep.lastTrained': 'allenato {date}',
   'rep.selectFirst':

@@ -17,8 +17,24 @@ function counter() {
 
 async function ready(page: Page) {
   await page.goto('/');
-  await expect(page.getByTestId('empty-state')).toBeVisible(); // storage ready, fresh profile
+  // storage ready, this week's repertoires created
+  await expect(
+    page
+      .getByRole('region', { name: 'Repertoires' })
+      .getByRole('button', { name: /^Week \d+ · White/ }),
+  ).toBeVisible();
   await expect(page.getByTestId('not-persistent')).toHaveCount(0);
+}
+
+/** Archives this week's repertoires, for tests that need a profile without repertoires. */
+async function archiveWeek(page: Page) {
+  const list = page.getByRole('region', { name: 'Repertoires' });
+  for (const color of ['White', 'Black']) {
+    const week = list.getByRole('button', { name: new RegExp(String.raw`^Week \d+ · ${color}`) });
+    await week.click();
+    await list.getByRole('button', { name: 'Archive', exact: true }).click();
+    await expect(week).toHaveCount(0);
+  }
 }
 
 /** Opens the Explore view of the openings panel (it opens on Today), on the by-name archive. */
@@ -85,14 +101,10 @@ async function waitSaved(page: Page) {
   await expect(page.locator('[data-saving="true"]')).toHaveCount(0);
 }
 
-test('the home page always shows the Import PGN button, with an empty-state invite', async ({
-  page,
-}) => {
+test('the home page always shows the Import PGN button', async ({ page }) => {
   await page.goto('/');
   // visible immediately, even before the database is ready
   await expect(page.getByRole('button', { name: /import pgn/i })).toBeVisible();
-  await expect(page.getByTestId('empty-state')).toContainText('No collections yet');
-  await expect(page.getByTestId('empty-state')).toContainText('Import PGN');
   const dialog = await openImport(page);
   await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(dialog).toBeHidden();
@@ -110,6 +122,29 @@ test('a pasted FEN finds the opening whatever move order reached it', async ({ p
   await expect(
     found.getByRole('button', { name: 'Open Scotch Game: Göring Gambit', exact: true }),
   ).not.toHaveCount(0);
+});
+
+test('week repertoires: one per colour, three lines each, selected in Training', async ({
+  page,
+}) => {
+  await ready(page);
+  const list = page.getByRole('region', { name: 'Repertoires' });
+  const white = list.getByRole('button', { name: /^Week \d+ · White · Random/ });
+  const black = list.getByRole('button', { name: /^Week \d+ · Black · Random/ });
+  await expect(white).toBeVisible();
+  await expect(black).toBeVisible();
+  await expect(white).toContainText(/0\/[123] lines clean/);
+  await expect(black).toContainText(/0\/[123] lines clean/);
+  await expect(white.getByTestId('week-badge')).toHaveText('Week');
+  // a reload in the same week creates nothing new
+  await page.reload();
+  await expect(list.getByRole('button', { name: /^Week \d+ · White/ })).toHaveCount(1);
+  // Training selects this week's White repertoire
+  await page.getByRole('tab', { name: 'Training' }).click();
+  await expect(list.getByRole('button', { name: /^Week \d+ · White/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
 });
 
 test('explore the ECO graph, save a line, add the book theory and train it', async ({ page }) => {
@@ -735,6 +770,7 @@ test('subfamilies are containers; a variation run does not tick its neighbours',
   page,
 }) => {
   await ready(page);
+  await archiveWeek(page);
   await explore(page);
   await page.getByRole('searchbox').fill('Caro-Kann Defense');
   await page
@@ -799,6 +835,7 @@ test('today and explore are separate; the album uncovers a variation once practi
   page,
 }) => {
   await ready(page);
+  await archiveWeek(page);
   // the panel opens on today's goal, alone
   await expect(page.getByTestId('mix-card')).toBeVisible();
   await expect(page.getByRole('searchbox')).toBeHidden();
@@ -912,6 +949,7 @@ test('from this position: a group shows whose openings it leads to, without a mi
 
 test('practising a repertoire variation in the lab reviews its FSRS cards', async ({ page }) => {
   await ready(page);
+  await archiveWeek(page);
   await (
     await enterFamily(page)
   )
