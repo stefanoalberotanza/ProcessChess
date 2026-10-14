@@ -67,3 +67,6 @@ extends a name only while the next position is unnamed or has the same name, and
 any other name, so two names never share a line. Families and subfamilies are containers: only
 variations are practised, and container progress is the roll-up of their variations. Old lab
 runs on changed lines stay in the log and no longer count.
+
+**Repertoire backbone (2026-10-13).** Lab moves that are repertoire moves feed FSRS, and the Today
+card is built from the repertoire; see ADR 013.

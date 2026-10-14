@@ -226,3 +226,17 @@ export function sidesFrom(
   }
   return sides;
 }
+
+/** The dataset name of the deepest named position along `ucis`; `null` when none is named. */
+export function deepestName(graph: OpeningGraph, ucis: readonly string[]): string | null {
+  const names = nodeNames(graph);
+  let node = graph.root;
+  let name: string | null = null;
+  for (const uci of ucis) {
+    const edge = graph.children(node).find((e) => e.uci === uci);
+    if (!edge) break;
+    node = edge.child;
+    name = names.get(node)?.name ?? name;
+  }
+  return name;
+}

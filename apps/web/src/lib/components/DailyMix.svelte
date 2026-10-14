@@ -1,14 +1,21 @@
-<!-- The day's practice mix: almost-automatic lines, reviews and a new neighbour (core dailyMix). -->
+<!-- The day's goal: due and learning lines of the repertoire first (FSRS), then new variations near
+     what the user knows (core repertoireSession + dailyMix; ADR 013). -->
 <script lang="ts">
   import {
-    type MixEntry,
+    type CardMap,
     type MixKind,
     type NameTree,
     type OpeningGraph,
+    type SrsCard,
+    type Tree,
     dailyMix,
+    deepestName,
+    lineReviewedOn,
+    lineSrsState,
     mixNext,
     moverOfLast,
     practiceLine,
+    repertoireSession,
   } from '@processchess/core';
   import type { LabRunSummary } from '@processchess/db';
   import { type LabItem, MASTERED_STREAK, lineKey } from '$lib/lab.svelte';
@@ -20,35 +27,65 @@
     graph: OpeningGraph;
     names: NameTree;
     summaries: Map<string, LabRunSummary>;
+    /** The user's standard-start repertoires with their cards. */
+    repertoires: { tree: Tree; cards: CardMap }[];
+    /** Cards of the user's repertoire moves by `edgeKeyAfter`. */
+    repertoire: Map<string, SrsCard[]>;
     /** True once the lab history has loaded: the mix is built from it, never before. */
     historyReady: boolean;
     onjump: (ucis: string[]) => void;
     onpractice: (queue: LabItem[], index: number) => void;
   }
-  let { graph, names, summaries, historyReady, onjump, onpractice }: Props = $props();
+  let {
+    graph,
+    names,
+    summaries,
+    repertoires,
+    repertoire,
+    historyReady,
+    onjump,
+    onpractice,
+  }: Props = $props();
 
+  /** One entry of the day: a repertoire line (`rep`) or a variation of the dictionary. */
+  interface Entry {
+    key: string;
+    name: string;
+    /** Where the board goes. */
+    ucis: string[];
+    /** The line practised. */
+    line: string[];
+    side: 'w' | 'b' | null;
+    kind: MixKind;
+    rep: boolean;
+  }
+
+  const SIZE = 5;
   const KEY = 'pc.mix';
   const localDay = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   let today = $state(localDay(now()));
 
-  /** The day's counter and, once built, its picks: the goal survives remounts and reloads. */
+  /** The day's counter and, once built, its entries: the goal survives remounts and reloads. */
   interface Stored {
+    v: 2;
     day: string;
     shuffle: number;
-    picks?: { key: string; kind: MixKind }[];
+    picks?: Entry[];
     firstDay?: boolean;
   }
   function readStored(): Partial<Stored> | null {
     try {
-      return JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Stored> | null;
+      const v = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Stored> | null;
+      // entries stored by the previous version (name-tree keys) are rebuilt
+      return v?.v === 2 ? v : v ? { day: v.day, shuffle: v.shuffle } : null;
     } catch {
       return null;
     }
   }
-  function writeStored(v: Stored) {
+  function writeStored(v: Omit<Stored, 'v'>) {
     try {
-      localStorage.setItem(KEY, JSON.stringify(v));
+      localStorage.setItem(KEY, JSON.stringify({ v: 2, ...v }));
     } catch {
       /* private mode: the mix lives in memory only */
     }
@@ -83,69 +120,79 @@
   }
 
   const lineOf = (node: { ucis: string[] }) => practiceLine(graph, node.ucis);
-  // frozen per (day, shuffle); recomputed once when the history first arrives
   // built once the history has loaded, then fixed per (day, shuffle): practising updates the ✓
   // and the count, never the entries
-  const mix = $derived.by<{ entries: MixEntry[]; firstDay: boolean; stored: boolean }>(() => {
+  const mix = $derived.by<{ entries: Entry[]; firstDay: boolean; stored: boolean }>(() => {
     if (!historyReady) return { entries: [], firstDay: false, stored: true };
     const s = shuffle;
     const day = today;
     return untrack(() => {
       const kept = readStored();
       if (kept?.day === day && kept.shuffle === s && kept.picks?.length) {
-        const entries = kept.picks.flatMap((p) => {
-          const node = names.get(p.key);
-          // picks stored before subfamilies became containers are rebuilt
-          return node?.kind === 'variation' ? [{ node, kind: p.kind }] : [];
-        });
-        if (entries.length === kept.picks.length) {
-          return { entries, firstDay: kept.firstDay ?? false, stored: true };
-        }
+        return { entries: kept.picks, firstDay: kept.firstDay ?? false, stored: true };
       }
       return build(day, s);
     });
   });
   function build(day: string, s: number) {
+    // 1. the repertoire: due lines (most overdue first), then lines being learnt
+    const fromRepertoire: Entry[] = repertoireSession(repertoires, now())
+      .slice(0, SIZE)
+      .map((l) => ({
+        key: l.ucis.join(' '),
+        name: deepestName(graph, l.ucis) ?? t('lab.unnamed'),
+        ucis: l.ucis,
+        line: l.ucis,
+        side: l.side,
+        kind: l.kind === 'due' ? 'review' : 'almost',
+        rep: true,
+      }));
+    // 2. free slots: variations of the dictionary, not already in a repertoire
+    const variations: Entry[] = dailyMix({
+      tree: names,
+      day,
+      shuffle: s,
+      masteredStreak: MASTERED_STREAK,
+      size: SIZE * 3,
+      lineOf: (n) => lineKey(lineOf(n)),
+      summaryOf: (n) => {
+        const sum = summaries.get(lineKey(lineOf(n)));
+        return sum && { ...sum, lastAt: sum.lastAt.getTime() };
+      },
+    })
+      .filter((e) => !e.node.side || lineSrsState(lineOf(e.node), e.node.side, repertoire) === null)
+      .map((e) => ({
+        key: e.node.key,
+        name: e.node.key,
+        ucis: e.node.ucis,
+        line: lineOf(e.node),
+        side: moverOfLast(e.node.ucis),
+        kind: e.kind,
+        rep: false,
+      }));
     return {
       stored: false,
-      firstDay: summaries.size === 0,
-      entries: dailyMix({
-        tree: names,
-        day,
-        shuffle: s,
-        masteredStreak: MASTERED_STREAK,
-        lineOf: (n) => lineKey(lineOf(n)),
-        summaryOf: (n) => {
-          const sum = summaries.get(lineKey(lineOf(n)));
-          return sum && { ...sum, lastAt: sum.lastAt.getTime() };
-        },
-      }),
+      firstDay: fromRepertoire.length === 0 && summaries.size === 0,
+      entries: [...fromRepertoire, ...variations.slice(0, SIZE - fromRepertoire.length)],
     };
   }
   // remember a freshly built mix for the rest of the day
   $effect(() => {
     if (mix.stored || !mix.entries.length) return;
-    writeStored({
-      day: today,
-      shuffle,
-      picks: mix.entries.map((e) => ({ key: e.node.key, kind: e.kind })),
-      firstDay: mix.firstDay,
-    });
+    writeStored({ day: today, shuffle, picks: mix.entries, firstDay: mix.firstDay });
   });
   const entries = $derived(mix.entries);
   const items = $derived<LabItem[]>(
-    entries.map((e) => ({
-      line: lineOf(e.node),
-      eco: null,
-      name: e.node.key,
-      side: moverOfLast(e.node.ucis),
-    })),
+    entries.map((e) => ({ line: e.line, eco: null, name: e.name, side: e.side })),
   );
-  const doneToday = (it: LabItem) => {
-    const s = summaries.get(lineKey(it.line));
+  const dayStart = $derived(new Date(`${today}T00:00:00`).getTime());
+  /** A repertoire line is done when all its user moves were reviewed today; others by the lab. */
+  function doneToday(e: Entry): boolean {
+    if (e.rep && e.side) return lineReviewedOn(e.line, e.side, repertoire, dayStart);
+    const s = summaries.get(lineKey(e.line));
     return !!s && s.lastClean && localDay(s.lastAt) === today;
-  };
-  const doneFlags = $derived(items.map(doneToday));
+  }
+  const doneFlags = $derived(entries.map(doneToday));
   const done = $derived(doneFlags.filter(Boolean).length);
   // the first-day wording only until something is done
   const firstDay = $derived(mix.firstDay && done === 0);
@@ -178,8 +225,8 @@
         type="button"
         class="next-name"
         data-testid="mix-next-name"
-        title={e.node.key}
-        onclick={() => onjump(e.node.ucis)}>{e.node.key}</button
+        title={e.name}
+        onclick={() => onjump(e.ucis)}>{e.name}</button
       >
       <button type="button" class="go" onclick={() => onpractice(items, next)}>
         ▶ {t('mix.practiseNow')}
@@ -187,17 +234,17 @@
     {/if}
   </section>
   <ul class="list" aria-label={t('mix.title')}>
-    {#each others as { e, i } (e.node.key)}
+    {#each others as { e, i } (e.key)}
       <li class="row">
         {#if doneFlags[i]}<span class="done" aria-hidden="true">✓</span>{:else}<span class="pad"
           ></span>{/if}
         <button
           type="button"
           class="enter"
-          onclick={() => onjump(e.node.ucis)}
-          aria-label={t('lab.enter', { name: e.node.key })}
+          onclick={() => onjump(e.ucis)}
+          aria-label={t('lab.enter', { name: e.name })}
         >
-          <span class="label" title={e.node.key}>{e.node.key}</span>
+          <span class="label" title={e.name}>{e.name}</span>
         </button>
         <span class="chip" data-kind={e.kind}>{t(`mix.kind.${e.kind}`)}</span>
         {#if !doneFlags[i]}
@@ -205,8 +252,8 @@
             type="button"
             class="play"
             onclick={() => onpractice(items, i)}
-            aria-label={t('lab.practise', { name: e.node.key })}
-            title={t('lab.practise', { name: e.node.key })}>▶</button
+            aria-label={t('lab.practise', { name: e.name })}
+            title={t('lab.practise', { name: e.name })}>▶</button
           >
         {/if}
       </li>

@@ -1,8 +1,13 @@
 import {
   type Hint,
+  type RecallAttempt,
+  type CardMap,
+  type SrsCard,
+  type Tree,
   type RecallResult,
   type RecallState,
   parseUci,
+  playMove,
   recallHint,
   recallUserPlies,
   restartRecall,
@@ -59,6 +64,11 @@ export class LabController {
   // raw state replaced as a whole on every load, never mutated: plain Maps are enough
   // eslint-disable-next-line svelte/prefer-svelte-reactivity
   summaries = $state.raw<Map<string, LabRunSummary>>(new Map());
+  /** Cards of the user's repertoire moves by `edgeKeyAfter` (ADR 013). */
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  repertoire = $state.raw<Map<string, SrsCard[]>>(new Map());
+  /** The user's non-archived repertoires with their cards (the Today card, ADR 013). */
+  repertoires = $state.raw<{ id: string; tree: Tree; cards: CardMap }[]>([]);
   // eslint-disable-next-line svelte/prefer-svelte-reactivity
   edgeStats = $state.raw<Map<string, LabEdgeStats>>(new Map());
   /** True after the first load of the lab history. */
@@ -66,6 +76,8 @@ export class LabController {
   private queue: LabItem[] = [];
   private index = 0;
   private runId = '';
+  /** FSRS session per repertoire collection for the current run (lab moves feed its cards). */
+  private sessions: Record<string, string> = {};
   private writes: Promise<unknown> = Promise.resolve();
 
   get active(): boolean {
@@ -127,9 +139,64 @@ export class LabController {
 
   private async load() {
     const db = storage();
-    [this.summaries, this.edgeStats] = await Promise.all([db.labRunSummaries(), db.labEdgeStats()]);
+    [this.summaries, this.edgeStats, this.repertoire, this.repertoires] = await Promise.all([
+      db.labRunSummaries(),
+      db.labEdgeStats(),
+      db.repertoireCards(),
+      db.listCollections().then((cs) =>
+        Promise.all(
+          cs.map(async (c) => ({
+            id: c.id,
+            tree: await db.loadTree(c.id),
+            cards: await db.listCards(c.id),
+          })),
+        ),
+      ),
+    ]);
     this.loaded = true;
     if (this.item) this.runs = await db.labRuns(this.item.line);
+  }
+
+  /**
+   * After a run: the lab history, the repertoire cards and the cards of the collections the run
+   * reviewed (trees do not change in the lab).
+   */
+  private async loadAfterRun(touched: readonly string[]) {
+    const db = storage();
+    const [summaries, edgeStats, repertoire, cards] = await Promise.all([
+      db.labRunSummaries(),
+      db.labEdgeStats(),
+      db.repertoireCards(),
+      Promise.all(touched.map(async (id) => [id, await db.listCards(id)] as const)),
+    ]);
+    this.summaries = summaries;
+    this.edgeStats = edgeStats;
+    this.repertoire = repertoire;
+    if (cards.length) {
+      const fresh: Record<string, CardMap> = Object.fromEntries(cards);
+      const known = this.repertoires.map((r) => r.id);
+      // a collection created since the last full load (e.g. with "+") joins with its tree
+      const added = await Promise.all(
+        touched
+          .filter((id) => !known.includes(id))
+          .map(async (id) => ({ id, tree: await db.loadTree(id), cards: fresh[id]! })),
+      );
+      this.repertoires = [
+        ...this.repertoires.map((r) => (r.id in fresh ? { ...r, cards: fresh[r.id]! } : r)),
+        ...added,
+      ];
+    }
+    if (this.item) this.runs = await db.labRuns(this.item.line);
+  }
+
+  /** Ends the FSRS sessions of the current run, once its queued writes are done. */
+  private closeSessions() {
+    const open = this.sessions;
+    this.sessions = {}; // the next run opens its own
+    this.save(async () => {
+      const db = storage();
+      for (const id of Object.values(open)) await db.endSession(id);
+    });
   }
 
   /** Starts practising `queue[index]`; Next moves along the queue. */
@@ -144,11 +211,13 @@ export class LabController {
     if (!this.item) return this.stop();
     this.recall = startRecall(this.item.line, { autoSide: this.autoSide });
     this.runId = newId();
+    this.closeSessions();
     this.reset();
     this.runs = await storage().labRuns(this.item.line);
   }
 
   stop() {
+    this.closeSessions();
     this.recall = null;
     this.item = null;
     this.runs = [];
@@ -183,6 +252,7 @@ export class LabController {
     if (!this.recall || !this.item) return;
     this.recall = restartRecall({ ...this.recall, autoSide: this.autoSide });
     this.runId = newId();
+    this.closeSessions();
     this.reset();
   }
 
@@ -236,14 +306,45 @@ export class LabController {
     if (r.attempt) {
       const attempt = r.attempt;
       this.save(() => storage().recordLabAttempt({ runId, ...attempt }));
+      this.feedRepertoire(attempt, fenBefore);
     }
     if (r.run && this.item) {
       const run = r.run;
       const { line, eco, name } = this.item;
       this.save(() => storage().recordLabRun({ id: runId, line, eco, name, ...run }));
-      this.save(() => this.load()); // inside the write queue: must not await it
+      const touched = this.sessions;
+      this.closeSessions();
+      // inside the write queue: must not await it; `touched` is filled by the queued attempts
+      this.save(() => this.loadAfterRun(Object.keys(touched)));
     }
     this.recall = r.state;
+  }
+
+  /**
+   * The repertoire is the centre and FSRS the only clock (ADR 013): a lab move that is one of the
+   * user's repertoire moves (same position and move, in a non-archived collection of the colour
+   * that played it) updates that move's card, as a drill attempt would.
+   */
+  private feedRepertoire(attempt: RecallAttempt, fenBefore: string) {
+    const after = playMove(fenBefore, attempt.uci);
+    if (!after) return;
+    const epdAfter = toEpd(after.fen);
+    const color = attempt.ply % 2 === 1 ? 'w' : 'b';
+    const sessions = this.sessions; // this run's, even if a new run starts before the write
+    this.save(async () => {
+      const db = storage();
+      for (const m of await db.repertoireMovesAt(epdAfter, attempt.uci, color)) {
+        sessions[m.collectionId] ??= (await db.startSession(m.collectionId, m.rootNodeId)).id;
+        await db.recordAttempt({
+          sessionId: sessions[m.collectionId]!,
+          nodeId: m.nodeId,
+          result: attempt.result,
+          playedUci: attempt.playedUci,
+          hints: attempt.hints,
+          timeMs: attempt.timeMs,
+        });
+      }
+    });
   }
 
   private save(fn: () => Promise<unknown>) {

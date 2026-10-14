@@ -882,3 +882,80 @@ test('from this position: a group shows whose openings it leads to, without a mi
   await expect(knight.getByRole('img', { name: 'White opening' })).toBeVisible();
   await expect(knight.getByRole('img', { name: 'Black opening' })).toBeVisible();
 });
+
+test('practising a repertoire variation in the lab reviews its FSRS cards', async ({ page }) => {
+  await ready(page);
+  await (
+    await enterFamily(page)
+  )
+    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
+    .click();
+  const name = 'Sicilian Defense: Najdorf Variation';
+  const row = page
+    .getByRole('list', { name: 'Variations of Sicilian Defense' })
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('button', { name: `Open ${name}`, exact: true }) });
+  await row.getByRole('button', { name: `Add ${name} to the repertoire` }).click();
+  await expectSelected(page, 'Black repertoire');
+  await row.getByRole('button', { name: `Open ${name}`, exact: true }).click();
+  const focusCard = page.getByTestId('lab-focus');
+  const sans = (await focusCard.locator('.line').textContent())!
+    .trim()
+    .split(' ')
+    .map((m) => m.replace(/^\d+\./, ''));
+  await focusCard.getByRole('button', { name: `Practise ${name}` }).click();
+  await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
+  for (const san of sans) await playSan(page, san);
+  await expect(page.getByTestId('lab-progress')).toHaveText('Opening complete');
+  await waitSaved(page);
+  // every Black move of the line got its first FSRS review
+  await page.getByRole('link', { name: 'Statistics' }).click();
+  await expect(page.getByTestId('today-new')).toHaveText(String(Math.floor(sans.length / 2)));
+
+  // back in the openings, the variation's progress is its FSRS state (ADR 013): moves answered
+  // this fast are rated Easy, so FSRS schedules them as already known (next review in days)
+  await page.goto('/');
+  await (
+    await enterFamily(page)
+  )
+    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
+    .click();
+  await expect(row.getByTestId('mastery')).toHaveAccessibleName('In your repertoire: known');
+});
+
+test('the Today card brings back a repertoire line when its cards are due', async ({ page }) => {
+  await page.clock.install({ time: new Date(2026, 9, 13, 10, 0) });
+  await ready(page);
+  await (
+    await enterFamily(page)
+  )
+    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
+    .click();
+  const name = 'Sicilian Defense: Najdorf Variation';
+  const row = page
+    .getByRole('list', { name: 'Variations of Sicilian Defense' })
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('button', { name: `Open ${name}`, exact: true }) });
+  await row.getByRole('button', { name: `Add ${name} to the repertoire` }).click();
+  await expectSelected(page, 'Black repertoire');
+  await row.getByRole('button', { name: `Open ${name}`, exact: true }).click();
+  const focusCard = page.getByTestId('lab-focus');
+  const sans = (await focusCard.locator('.line').textContent())!
+    .trim()
+    .split(' ')
+    .map((m) => m.replace(/^\d+\./, ''));
+  await focusCard.getByRole('button', { name: `Practise ${name}` }).click();
+  await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
+  for (const san of sans) await playSan(page, san);
+  await expect(page.getByTestId('lab-progress')).toHaveText('Opening complete');
+  await waitSaved(page);
+
+  // a first fast answer is reviewed again 8 days later (FSRS, Easy): come back after 9 days
+  await page.clock.fastForward(9 * 86_400_000);
+  await page.reload();
+  await page.getByRole('tab', { name: 'Today' }).click();
+  const card = page.getByTestId('mix-card');
+  await expect(card).toContainText("Today's goal");
+  await expect(card.getByTestId('mix-next-name')).toHaveText(name);
+  await expect(card).toContainText('review');
+});

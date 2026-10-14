@@ -10,7 +10,7 @@ Three ways to practise do not talk to each other:
 | ------------ | -------------------------------- | ------------------------------------- |
 | Drill/review | repertoire node (`attempt`)      | FSRS `card` per user move, due dates  |
 | Opening lab  | graph edge (`lab_attempt`) + run | clean streak per **line** (`lab_run`) |
-| Daily mix    | name-tree variation              | lab runs only                         |
+| Today card   | name-tree variation (daily mix)  | lab runs only                         |
 
 Adding a variation to the repertoire ("+") does not affect the mix; practising it in the lab does
 not move its FSRS schedule; "done today" and "to review" mean different things in different
@@ -53,7 +53,7 @@ in non-archived collections whose `user_color = color`. It uses the existing `no
 index; `node.epd` is the position after the move, so the lab computes `epdAfter` from the
 position before and the move (core `position` helpers + `toEpd`). No schema change.
 
-### B. The daily session replaces the daily mix
+### B. The daily session feeds the Today card
 
 Built in core by `dailySession(...)` (pure, tested) from:
 
@@ -65,13 +65,16 @@ Built in core by `dailySession(...)` (pure, tested) from:
    is (the "+" suggestion); shown with a "+" instead of ▶ — practising it is exploration until
    added.
 
-- Size 5 like today; slots: as many due lines as exist (up to 5), then learning, then 1 new when
-  a slot is free. Stable for the day per `(day, shuffle)` and stored, as today.
+- Same Today goal card and list as today (`DailyMix.svelte`: next entry, Practise now, Change,
+  "N of M done today", picks stored per `(day, shuffle)` in `localStorage` `pc.mix`); only the
+  source of the entries changes, from lab runs (`dailyMix`) to the repertoire (`dailySession`).
+- Size 5; slots: as many due lines as exist (up to 5), then learning, then 1 new when a slot is
+  free.
 - Without any repertoire: the card says "Start here", lists 5 popular variations each with "+",
   and explains in one line that adding one starts the daily session (`mix.empty`).
-- **Progress** "N of M done today" = user moves of the session's lines reviewed today
-  (`attempt` today) / user moves of the session's lines. One definition, used everywhere the
-  card appears.
+- **Progress** "N of M done today" counts entries, as the card already does: a repertoire entry
+  is done when every user move of its line was reviewed today; a dictionary entry by the lab rule.
+  One definition, used everywhere the card appears.
 - Practising a session line opens the **lab** on that line (same experience as today, now
   feeding FSRS through A).
 
@@ -120,5 +123,6 @@ Built in core by `dailySession(...)` (pure, tested) from:
 
 ## Delivery
 
-Start from a clean branch after the current branch (`claude/youthful-planck-a73qzx`) is
-integrated; implement A → C → B (B depends on A to have data, C is small and makes A visible).
+Branch `feat/repertoire-backbone` from `release/v1` (`c7649d6`); implement A → C → B (B depends on
+A to have data, C is small and makes A visible). The Explore views and the "+" buttons are
+unchanged.

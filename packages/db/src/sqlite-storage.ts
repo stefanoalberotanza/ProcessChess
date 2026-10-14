@@ -421,6 +421,60 @@ export class SqliteStorage implements Storage {
     });
   }
 
+  async repertoireMovesAt(epdAfter: string, uci: string, color: 'w' | 'b') {
+    const rows = await this.db
+      .select({ nodeId: schema.node.id, collectionId: schema.node.collectionId })
+      .from(schema.node)
+      .innerJoin(schema.collection, eq(schema.collection.id, schema.node.collectionId))
+      .where(
+        and(
+          eq(schema.node.epd, epdAfter),
+          eq(schema.node.uci, uci),
+          eq(schema.node.isUserMove, true),
+          eq(schema.collection.userColor, color),
+          isNull(schema.collection.archivedAt),
+          eq(schema.collection.startFen, INITIAL_FEN),
+        ),
+      );
+    if (rows.length === 0) return [];
+    // the root of a collection is its node without a parent
+    const roots = await this.db
+      .select({ id: schema.node.id, collectionId: schema.node.collectionId })
+      .from(schema.node)
+      .where(
+        and(
+          inArray(
+            schema.node.collectionId,
+            rows.map((r) => r.collectionId),
+          ),
+          isNull(schema.node.parentId),
+        ),
+      );
+    const rootOf = new Map(roots.map((r) => [r.collectionId, r.id]));
+    return rows.map((r) => ({ ...r, rootNodeId: rootOf.get(r.collectionId)! }));
+  }
+
+  async repertoireCards() {
+    const rows = await this.db
+      .select({ card: schema.card, epd: schema.node.epd, uci: schema.node.uci })
+      .from(schema.card)
+      .innerJoin(schema.node, eq(schema.node.id, schema.card.nodeId))
+      .innerJoin(schema.collection, eq(schema.collection.id, schema.node.collectionId))
+      .where(
+        and(
+          eq(schema.node.isUserMove, true),
+          isNull(schema.collection.archivedAt),
+          eq(schema.collection.startFen, INITIAL_FEN),
+        ),
+      );
+    const out = new Map<string, SrsCard[]>();
+    for (const r of rows) {
+      const key = `${r.epd} ${r.uci}`;
+      out.set(key, [...(out.get(key) ?? []), toSrsCard(r.card)]);
+    }
+    return out;
+  }
+
   async listCards(collectionId: string): Promise<CardMap> {
     const rows = await this.db
       .select({ card: schema.card })

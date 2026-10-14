@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadOpenings } from './data';
 import { type OpeningGraph, loadOpeningGraph } from './graph';
-import { branchesFrom, commonPrefix, sidesFrom } from './continuations';
+import { branchesFrom, commonPrefix, deepestName, sidesFrom } from './continuations';
 
 // expectations come from data/openings/c.tsv
 const KNIGHT = ['e2e4', 'e7e5', 'g1f3']; // King's Knight Opening
@@ -65,5 +65,27 @@ describe('sidesFrom', () => {
 
   it('sees nothing off book', () => {
     expect(sidesFrom(graph, ['h2h4', 'h7h5', 'h1h3'])).toEqual({ w: false, b: false });
+  });
+});
+
+describe('deepestName', () => {
+  it('is the deepest dataset name along the moves (data/openings/b.tsv B90)', () => {
+    const najdorf = [
+      'e2e4',
+      'c7c5',
+      'g1f3',
+      'd7d6',
+      'd2d4',
+      'c5d4',
+      'f3d4',
+      'g8f6',
+      'b1c3',
+      'a7a6',
+    ];
+    expect(deepestName(graph, najdorf)).toBe('Sicilian Defense: Najdorf Variation');
+    expect(deepestName(graph, [...najdorf, 'h2h4', 'h7h5', 'h1h3'])).toBe(
+      'Sicilian Defense: Najdorf Variation',
+    );
+    expect(deepestName(graph, [])).toBe(null); // the initial position has no name
   });
 });

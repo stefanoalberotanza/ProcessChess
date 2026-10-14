@@ -23,10 +23,12 @@
     practiceLine,
     playLine,
     resolveOpening,
+    lineSrsState,
     rollupMastery,
     searchOpenings,
   } from '@processchess/core';
   import type { LabRunSummary } from '@processchess/db';
+  import type { CardMap, SrsCard, Tree } from '@processchess/core';
   import DailyMix from '$lib/components/DailyMix.svelte';
   import Mastery from '$lib/components/Mastery.svelte';
   import MiniBoard from '$lib/components/MiniBoard.svelte';
@@ -45,6 +47,10 @@
     /** Colour of the selected repertoire, null when none is selected. */
     userColor: 'w' | 'b' | null;
     summaries: Map<string, LabRunSummary>;
+    /** Cards of the user's repertoire moves (FSRS state of repertoire lines, ADR 013). */
+    repertoire: Map<string, SrsCard[]>;
+    /** The user's standard-start repertoires with their cards (the Today card, ADR 013). */
+    repertoires: { tree: Tree; cards: CardMap }[];
     /** True once the lab history has loaded. */
     historyReady: boolean;
     /** Starts a lab session on `queue[index]`. */
@@ -64,6 +70,8 @@
     standardStart,
     userColor,
     summaries,
+    repertoire,
+    repertoires,
     historyReady,
     onpractice,
     onjump,
@@ -131,11 +139,22 @@
     side: n.side,
   });
   /** Automatic lines out of all the lines of a level and its sublevels. */
+  /** FSRS state of a practice line in the repertoire, `null` when it is not there (ADR 013). */
+  const srsOf = (line: string[], side: 'w' | 'b' | null) =>
+    side ? lineSrsState(line, side, repertoire) : null;
+  /** Progress of a line as a clean streak: FSRS for repertoire lines, the lab otherwise. */
+  function streakOfLine(line: string[], side: 'w' | 'b' | null): number | undefined {
+    const srs = srsOf(line, side);
+    if (srs === 'known') return MASTERED_STREAK;
+    if (srs === 'learning') return 1;
+    if (srs === 'new') return 0;
+    return summaries.get(lineKey(line))?.cleanStreak;
+  }
   const rollupOf = (n: NameNode) =>
     rollupMastery(
       names!,
       n.key,
-      (m) => summaries.get(lineKey(practiceLine(graph!, m.ucis)))?.cleanStreak,
+      (m) => streakOfLine(practiceLine(graph!, m.ucis), m.side),
       MASTERED_STREAK,
     );
   const levelItems = $derived(graph ? level.map(item) : []);
@@ -199,9 +218,9 @@
   /** Album tile of a level: a folder, a covered variation, a discovered one, or a known one. */
   function tileState(n: NameNode, i: number): 'folder' | 'hidden' | 'found' | 'known' {
     if (n.kind !== 'variation') return 'folder';
-    const s = summaries.get(lineKey(levelItems[i]!.line));
-    if (!s) return 'hidden';
-    return s.cleanStreak >= MASTERED_STREAK ? 'known' : 'found';
+    const streak = streakOfLine(levelItems[i]!.line, n.side);
+    if (streak === undefined) return 'hidden';
+    return streak >= MASTERED_STREAK ? 'known' : 'found';
   }
   function tileBoard(n: { ucis: string[] }): { fen: string; last: [string, string] | null } {
     const fen = playLine(INITIAL_FEN, n.ucis)?.fen ?? INITIAL_FEN;
@@ -336,7 +355,16 @@
     hidden={view !== 'today'}
   >
     {#if graph && names}
-      <DailyMix {graph} {names} {summaries} {historyReady} {onjump} {onpractice} />
+      <DailyMix
+        {graph}
+        {names}
+        {summaries}
+        {repertoires}
+        {repertoire}
+        {historyReady}
+        {onjump}
+        {onpractice}
+      />
     {/if}
   </div>
   <div
@@ -371,7 +399,7 @@
               <span class="label" title={it.name}>{it.name}</span>
             </button>
             {#if isVariation(it.name)}
-              <Mastery summary={summaries.get(lineKey(it.line))} />
+              <Mastery summary={summaries.get(lineKey(it.line))} srs={srsOf(it.line, it.side)} />
               <button
                 type="button"
                 class="play"
@@ -450,7 +478,10 @@
               <span class="focus-name">{labelOf(focus)}</span>
               {#if isLeaf(focus)}{@render leaf()}{/if}
               {#if focus.kind === 'variation'}
-                <Mastery summary={summaries.get(lineKey(focusItem.line))} />
+                <Mastery
+                  summary={summaries.get(lineKey(focusItem.line))}
+                  srs={srsOf(focusItem.line, focusItem.side)}
+                />
               {/if}
               {#if focus.children.length}<MasteryRollup rollup={rollupOf(focus)} />{/if}
             </div>
@@ -536,6 +567,7 @@
                   {#if n.kind === 'variation'}
                     {#if state !== 'hidden'}<Mastery
                         summary={summaries.get(lineKey(levelItems[i]!.line))}
+                        srs={srsOf(levelItems[i]!.line, n.side)}
                       />{/if}
                     <button
                       type="button"
@@ -638,7 +670,10 @@
                     </button>
                     <div class="tile-foot">
                       {#if isVariation(c.name)}
-                        <Mastery summary={summaries.get(lineKey(branchItems[i]!.line))} />
+                        <Mastery
+                          summary={summaries.get(lineKey(branchItems[i]!.line))}
+                          srs={srsOf(branchItems[i]!.line, branchItems[i]!.side)}
+                        />
                         <button
                           type="button"
                           class="play"

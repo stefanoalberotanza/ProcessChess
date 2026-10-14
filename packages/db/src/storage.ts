@@ -44,6 +44,13 @@ export interface NewNodeInput {
   comment?: string | null;
 }
 
+/** A repertoire node matched by a lab move (see `repertoireMovesAt`). */
+export interface RepertoireMove {
+  collectionId: string;
+  nodeId: string;
+  rootNodeId: string;
+}
+
 export interface NewAttemptInput {
   sessionId: string;
   nodeId: string;
@@ -161,6 +168,10 @@ export interface Storage {
 
   /** FSRS cards of the moves of a collection, keyed by node id. */
   listCards(collectionId: string): Promise<CardMap>;
+  /** User moves of non-archived standard-start collections of `color` reaching `epdAfter` with `uci`. */
+  repertoireMovesAt(epdAfter: string, uci: string, color: 'w' | 'b'): Promise<RepertoireMove[]>;
+  /** Cards of the user moves of non-archived standard-start collections, by `${node.epd} ${node.uci}`. */
+  repertoireCards(): Promise<Map<string, SrsCard[]>>;
   /**
    * Daily totals between two local days (YYYY-MM-DD, inclusive), oldest first, only days with
    * attempts. All collections unless `collectionId`.

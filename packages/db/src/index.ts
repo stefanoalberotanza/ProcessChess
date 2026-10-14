@@ -6,6 +6,7 @@ export { openingRows } from './openings';
 export * from './schema';
 export { INITIAL_FEN, SqliteStorage, newId, type Db } from './sqlite-storage';
 export type {
+  RepertoireMove,
   CollectionSummary,
   LabEdgeStats,
   LabRunSummary,
