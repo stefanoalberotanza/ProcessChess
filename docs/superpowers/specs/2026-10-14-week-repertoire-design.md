@@ -87,11 +87,11 @@ Rules:
 
 ## App
 
-- `apps/web/src/lib/week.svelte.ts`: `ensureWeek(storage, graph, tree, now)` runs `planWeek`,
-  archives, and for each colour to create builds a tree with core `addLine` from the lines and
-  saves it with `Storage.createCollectionFromTree`. Called once from the bootstrap in
-  `app.svelte.ts` after migrations, openings and the graph are loaded. Errors are logged and do
-  not block the app.
+- `apps/web/src/lib/week.ts`: `ensureWeek(storage, graph, now)` runs `planWeek`, archives, and
+  for each colour to create builds the tree with core `weekTree` (built on `addLine`) and saves
+  it with `Storage.createCollectionFromTree`. Called once from the page's startup effect
+  (`+page.svelte`, where the opening graph is loaded), before the repertoire list is read.
+  Errors are logged and do not block the app.
 - Openings tab (`ExplorePanel.svelte`): remove the Today/Explore switch and the Today panel;
   Explore is shown directly. Delete `DailyMix.svelte` and the `panel.today` / `mix.*` keys from
   `en.ts` and `it.ts`.
