@@ -35,6 +35,7 @@ apps/web/                     SvelteKit app (@processchess/web)
   src/lib/app.svelte.ts       bootstrap: OPFS storage, migrations, openings dataset
   src/lib/drill.svelte.ts     DrillController: drill UI state + attempt logging
   src/lib/lab.svelte.ts       LabController: opening lab sessions + lab history
+  src/lib/week.ts             ensureWeek: weekly repertoires (White/Black) created at startup
   src/lib/i18n/               en.ts (keys), it.ts, t()
   src/lib/components/         RepertoireList, ExplorePanel, LabPanel, Mastery, GraphPanel, MiniBoard,
                               FenExport, SideMark,
@@ -54,6 +55,7 @@ packages/core/                @processchess/core — pure logic, no UI, no I/O
   src/drill/                  line drill and review drill engine
   src/lab/                    opening lab: popular openings, practice lines, recall sessions
   src/srs/                    FSRS cards (ts-fsrs), due moves and counts, daily stats helpers
+  src/week/                   week ids, planWeek, weekRepertoire (weekly repertoires)
   src/position.ts             legal moves, SAN↔UCI for the UI
   test/fixtures/              PGN fixtures
 packages/db/                  @processchess/db — Drizzle schema, migrations, Storage

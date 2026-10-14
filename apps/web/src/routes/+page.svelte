@@ -585,8 +585,6 @@
           userColor={standardStart ? (selected?.userColor ?? null) : null}
           summaries={lab.summaries}
           repertoire={lab.repertoire}
-          repertoires={lab.repertoires}
-          historyReady={lab.loaded}
           onpractice={(queue, i) => void lab.start(queue, i)}
           onjump={(u) => goTo(u)}
           onaddbook={(lines) => void addBook(lines)}

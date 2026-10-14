@@ -1,6 +1,9 @@
 # ADR 013 — Repertoire backbone: one memory, one daily session
 
 - Status: accepted
+- Amended 2026-10-14: the Today card is removed (week repertoires, see
+  docs/superpowers/specs/2026-10-14-week-repertoire-design.md); repertoireSession and dailyMix stay in
+  core unused.
 - Date: 2026-10-13
 
 ## Context

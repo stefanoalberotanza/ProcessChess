@@ -1,6 +1,5 @@
 <script module lang="ts">
-  /** The panel's view survives remounts (a practice session replaces the panel meanwhile). */
-  let lastView: 'today' | 'explore' = 'today';
+  /** The panel's tab survives remounts (a practice session replaces the panel meanwhile). */
   let lastTab: 'here' | 'name' = 'here';
 </script>
 
@@ -29,8 +28,7 @@
     searchPosition,
   } from '@processchess/core';
   import type { LabRunSummary } from '@processchess/db';
-  import type { CardMap, SrsCard, Tree } from '@processchess/core';
-  import DailyMix from '$lib/components/DailyMix.svelte';
+  import type { SrsCard } from '@processchess/core';
   import Mastery from '$lib/components/Mastery.svelte';
   import MiniBoard from '$lib/components/MiniBoard.svelte';
   import MasteryRollup from '$lib/components/MasteryRollup.svelte';
@@ -50,10 +48,6 @@
     summaries: Map<string, LabRunSummary>;
     /** Cards of the user's repertoire moves (FSRS state of repertoire lines, ADR 013). */
     repertoire: Map<string, SrsCard[]>;
-    /** The user's standard-start repertoires with their cards (the Today card, ADR 013). */
-    repertoires: { tree: Tree; cards: CardMap }[];
-    /** True once the lab history has loaded. */
-    historyReady: boolean;
     /** Starts a lab session on `queue[index]`. */
     onpractice: (queue: LabItem[], index: number) => void;
     /** Moves the board (entering an opening or a move). */
@@ -72,8 +66,6 @@
     userColor,
     summaries,
     repertoire,
-    repertoires,
-    historyReady,
     onpractice,
     onjump,
     onaddbook,
@@ -216,10 +208,6 @@
       return { ...g, sides };
     });
   });
-  let view = $state<'today' | 'explore'>(lastView);
-  $effect(() => {
-    lastView = view;
-  });
   /** A variation after which the openings dictionary names nothing else. */
   const isLeaf = (n: NameNode) =>
     n.kind === 'variation' && n.children.length === 0 && !!graph && isDictionaryLeaf(graph, n.ucis);
@@ -337,51 +325,7 @@
 {/snippet}
 
 <div class="explore">
-  <div class="views" role="tablist">
-    <button
-      type="button"
-      role="tab"
-      id="view-today"
-      aria-controls="panel-today"
-      aria-selected={view === 'today'}
-      onclick={() => (view = 'today')}>{t('panel.today')}</button
-    >
-    <button
-      type="button"
-      role="tab"
-      id="view-explore"
-      aria-controls="panel-explore"
-      aria-selected={view === 'explore'}
-      onclick={() => (view = 'explore')}>{t('panel.explore')}</button
-    >
-  </div>
-  <div
-    role="tabpanel"
-    id="panel-today"
-    aria-labelledby="view-today"
-    class="today"
-    hidden={view !== 'today'}
-  >
-    {#if graph && names}
-      <DailyMix
-        {graph}
-        {names}
-        {summaries}
-        {repertoires}
-        {repertoire}
-        {historyReady}
-        {onjump}
-        {onpractice}
-      />
-    {/if}
-  </div>
-  <div
-    role="tabpanel"
-    id="panel-explore"
-    aria-labelledby="view-explore"
-    class="explore-view"
-    hidden={view !== 'explore'}
-  >
+  <div class="explore-view">
     <label class="search">
       <span class="sr-only">{t('explore.search')}</span>
       <input type="search" bind:value={query} placeholder={t('explore.searchPlaceholder')} />
@@ -713,29 +657,7 @@
 </div>
 
 <style>
-  .views {
-    display: flex;
-    gap: 0.4rem;
-    margin-bottom: 0.6rem;
-  }
-  .views [role='tab'] {
-    flex: 1;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    border-radius: 999px;
-    padding: 0.4rem 0;
-    font-weight: 600;
-    color: var(--muted);
-  }
-  .views [role='tab'][aria-selected='true'] {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--on-accent);
-  }
-  .today {
-    padding: 0.4rem 0;
-  }
-  .explore-view:not([hidden]) {
+  .explore-view {
     display: flex;
     flex-direction: column;
     gap: 0.6rem;

@@ -37,9 +37,8 @@ async function archiveWeek(page: Page) {
   }
 }
 
-/** Opens the Explore view of the openings panel (it opens on Today), on the by-name archive. */
+/** Opens the openings panel on the by-name archive. */
 async function explore(page: Page) {
-  await page.getByRole('tab', { name: 'Explore' }).click();
   await page.getByRole('tab', { name: 'Practise by name' }).click();
 }
 
@@ -108,6 +107,16 @@ test('the home page always shows the Import PGN button', async ({ page }) => {
   const dialog = await openImport(page);
   await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(dialog).toBeHidden();
+});
+
+test('the openings tab has no Today view', async ({ page }) => {
+  await ready(page);
+  await explore(page);
+  await expect(page.getByRole('tab', { name: 'Today' })).toHaveCount(0);
+  await expect(page.getByRole('searchbox')).toHaveAttribute(
+    'placeholder',
+    'Search an opening or paste a FEN',
+  );
 });
 
 test('a pasted FEN finds the opening whatever move order reached it', async ({ page }) => {
@@ -598,7 +607,6 @@ test('from this position: every dictionary branch, grouped, variations on demand
   page,
 }) => {
   await ready(page);
-  await page.getByRole('tab', { name: 'Explore' }).click();
   // data/openings/c.tsv: after 1.e4 e5 2.Nf3 come 2...Nc6 (King's Knight Opening: Normal
   // Variation), 2...Nf6 (Petrov's Defense), 2...d6 (Philidor Defense)
   for (const san of ['e4', 'e5', 'Nf3']) await playSan(page, san);
@@ -635,7 +643,6 @@ test('from this position: every dictionary branch, grouped, variations on demand
 
 test('from this position works after a transposition (Scotch Game by 1.Nf3)', async ({ page }) => {
   await ready(page);
-  await page.getByRole('tab', { name: 'Explore' }).click();
   // 1.Nf3 Nc6 2.e4 e5 3.d4 is the C44 Scotch Game position, off the dataset's move order
   for (const san of ['Nf3', 'Nc6', 'e4', 'e5', 'd4']) await playSan(page, san);
   await expect(page.getByRole('tab', { name: /^From this position/ })).toBeEnabled();
@@ -659,111 +666,6 @@ test('from this position is off for a collection with a custom start', async ({ 
   await expect(page.getByRole('heading', { name: 'Practise by name' })).toBeVisible();
   await expect(page.getByRole('list', { name: 'From this position' })).toHaveCount(0);
   await expect(page.getByRole('tab', { name: /^From this position/ })).toBeDisabled();
-});
-
-test('daily mix: five variations, stable, changes on demand, follows practice', async ({
-  page,
-}) => {
-  await ready(page);
-  await explore(page);
-  await expect(page.getByRole('searchbox')).toHaveAttribute(
-    'placeholder',
-    'Search an opening or paste a FEN',
-  );
-  await page.getByRole('tab', { name: 'Today' }).click();
-  const card = page.getByTestId('mix-card');
-  const mixList = page.getByRole('list', { name: 'Daily mix' });
-  await expect(card).toContainText('Start here');
-  await expect(card).toContainText('5 popular openings to try');
-  await expect(mixList.getByRole('listitem')).toHaveCount(4);
-  const snapshot = async () =>
-    [
-      await card.getByTestId('mix-next-name').textContent(),
-      ...(await mixList.getByRole('listitem').allTextContents()),
-    ].join('|');
-  const first = await snapshot();
-  await page.reload();
-  await expect(mixList.getByRole('listitem')).toHaveCount(4);
-  expect(await snapshot()).toEqual(first); // same day → same mix
-  await card.getByRole('button', { name: 'Change' }).click();
-  await expect.poll(snapshot).not.toEqual(first);
-
-  // one run with a mistake: that variation becomes "almost there" in the mix
-  await (
-    await enterFamily(page)
-  )
-    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
-    .click();
-  const name = 'Sicilian Defense: Najdorf Variation';
-  await page
-    .getByRole('list', { name: 'Variations of Sicilian Defense' })
-    .getByRole('button', { name: `Open ${name}`, exact: true })
-    .click();
-  const focusCard = page.getByTestId('lab-focus');
-  const sans = (await focusCard.locator('.line').textContent())!
-    .trim()
-    .split(' ')
-    .map((m) => m.replace(/^\d+\./, ''));
-  await focusCard.getByRole('button', { name: `Practise ${name}` }).click();
-  await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
-  await playSan(page, sans[0]!);
-  await playSan(page, sans[1] === 'e5' ? 'c5' : 'e5');
-  for (const san of sans.slice(1)) await playSan(page, san);
-  await expect(page.getByTestId('lab-progress')).toHaveText('Opening complete');
-  await waitSaved(page);
-  await page.getByRole('button', { name: 'Back to the list' }).click();
-  // the mix is fixed for the day: a new mix picks up the history
-  await page.getByRole('tab', { name: 'Today' }).click();
-  await card.getByRole('button', { name: 'Change' }).click();
-  const where = card
-    .or(mixList.getByRole('listitem').filter({ has: page.getByTitle(name, { exact: true }) }))
-    .filter({ hasText: name });
-  await expect(where.first()).toContainText('almost there');
-});
-
-test('daily mix: "Change" after midnight counts for the new day', async ({ page }) => {
-  await page.clock.install({ time: new Date(2026, 9, 12, 23, 59) });
-  await ready(page);
-  await expect(page.getByTestId('mix-card')).toBeVisible();
-  await page.clock.fastForward('02:00');
-  await page.getByTestId('mix-card').getByRole('button', { name: 'Change' }).click();
-  const stored = await page.evaluate(() => localStorage.getItem('pc.mix'));
-  expect(JSON.parse(stored!)).toMatchObject({ day: '2026-10-13', shuffle: 1 });
-});
-
-test('daily mix: practise now, then the card moves to the next entry', async ({ page }) => {
-  await ready(page);
-  const card = page.getByTestId('mix-card');
-  const name = (await card.getByTestId('mix-next-name').textContent())!.trim();
-  const mixNames = async () =>
-    [
-      (await card.getByTestId('mix-next-name').textContent())!.trim(),
-      ...(await page.getByRole('list', { name: 'Daily mix' }).locator('.label').allTextContents()),
-    ].sort();
-  const before = await mixNames();
-  // read the practice line from the opening's focus card (mix names are dataset names)
-  await explore(page);
-  await page.getByRole('searchbox').fill(name);
-  await page
-    .getByRole('list', { name: 'Openings found' })
-    .getByRole('button', { name: `Open ${name}`, exact: true })
-    .first()
-    .click();
-  const sans = (await page.getByTestId('lab-focus').locator('.line').textContent())!
-    .trim()
-    .split(' ')
-    .map((m) => m.replace(/^\d+\./, ''));
-  await page.getByRole('tab', { name: 'Today' }).click();
-  await card.getByRole('button', { name: 'Practise now' }).click();
-  await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
-  for (const san of sans) await playSan(page, san);
-  await expect(page.getByTestId('lab-progress')).toHaveText('Opening complete');
-  await waitSaved(page);
-  await page.getByRole('button', { name: 'Back to the list' }).click();
-  await expect(card).toContainText('1 of 5 variations done');
-  // the day's goal stays the same: no reshuffle after the first run
-  expect(await mixNames()).toEqual(before);
-  await expect(card.getByTestId('mix-next-name')).not.toHaveText(name);
 });
 
 test('subfamilies are containers; a variation run does not tick its neighbours', async ({
@@ -831,17 +733,9 @@ test('add a variation to the repertoire from the openings panel', async ({ page 
   await expect(row.getByTitle('In your repertoire')).toBeVisible();
 });
 
-test('today and explore are separate; the album uncovers a variation once practised', async ({
-  page,
-}) => {
+test('the album uncovers a variation once practised', async ({ page }) => {
   await ready(page);
   await archiveWeek(page);
-  // the panel opens on today's goal, alone
-  await expect(page.getByTestId('mix-card')).toBeVisible();
-  await expect(page.getByRole('searchbox')).toBeHidden();
-  await page.getByRole('tab', { name: 'Explore' }).click();
-  await expect(page.getByTestId('mix-card')).toBeHidden();
-
   await (
     await enterFamily(page)
   )
@@ -873,7 +767,6 @@ test('today and explore are separate; the album uncovers a variation once practi
   await expect(page.getByTestId('lab-progress')).toHaveText('Opening complete');
   await waitSaved(page);
   await page.getByRole('button', { name: 'Back to the list' }).click();
-  await page.getByRole('tab', { name: 'Explore' }).click();
   await page
     .getByRole('navigation', { name: 'Opening levels' })
     .getByRole('button', { name: 'Sicilian Defense', exact: true })
@@ -911,7 +804,6 @@ test('from this position: a group opens its variations where they diverge; main 
   page,
 }) => {
   await ready(page);
-  await page.getByRole('tab', { name: 'Explore' }).click();
   for (const san of ['e4', 'e5', 'Nf3']) await playSan(page, san);
   const groups = page.getByRole('list', { name: 'From this position' });
   // data/openings/c.tsv: the King's Pawn Game variations diverge at once (2...f6, 2...Bc5, …):
@@ -934,7 +826,6 @@ test('from this position: a group shows whose openings it leads to, without a mi
   page,
 }) => {
   await ready(page);
-  await page.getByRole('tab', { name: 'Explore' }).click();
   for (const san of ['e4', 'e5']) await playSan(page, san);
   const groups = page.getByRole('list', { name: 'From this position' });
   const knight = groups
@@ -986,41 +877,4 @@ test('practising a repertoire variation in the lab reviews its FSRS cards', asyn
     .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
     .click();
   await expect(row.getByTestId('mastery')).toHaveAccessibleName('In your repertoire: known');
-});
-
-test('the Today card brings back a repertoire line when its cards are due', async ({ page }) => {
-  await page.clock.install({ time: new Date(2026, 9, 13, 10, 0) });
-  await ready(page);
-  await (
-    await enterFamily(page)
-  )
-    .getByRole('button', { name: 'Open Sicilian Defense', exact: true })
-    .click();
-  const name = 'Sicilian Defense: Najdorf Variation';
-  const row = page
-    .getByRole('list', { name: 'Variations of Sicilian Defense' })
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('button', { name: `Open ${name}`, exact: true }) });
-  await row.getByRole('button', { name: `Add ${name} to the repertoire` }).click();
-  await expectSelected(page, 'Black repertoire');
-  await row.getByRole('button', { name: `Open ${name}`, exact: true }).click();
-  const focusCard = page.getByTestId('lab-focus');
-  const sans = (await focusCard.locator('.line').textContent())!
-    .trim()
-    .split(' ')
-    .map((m) => m.replace(/^\d+\./, ''));
-  await focusCard.getByRole('button', { name: `Practise ${name}` }).click();
-  await page.getByRole('checkbox', { name: 'Play the opponent’s moves automatically' }).uncheck();
-  for (const san of sans) await playSan(page, san);
-  await expect(page.getByTestId('lab-progress')).toHaveText('Opening complete');
-  await waitSaved(page);
-
-  // a first fast answer is reviewed again 8 days later (FSRS, Easy): come back after 9 days
-  await page.clock.fastForward(9 * 86_400_000);
-  await page.reload();
-  await page.getByRole('tab', { name: 'Today' }).click();
-  const card = page.getByTestId('mix-card');
-  await expect(card).toContainText("Today's goal");
-  await expect(card.getByTestId('mix-next-name')).toHaveText(name);
-  await expect(card).toContainText('review');
 });
