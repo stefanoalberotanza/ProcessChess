@@ -15,6 +15,7 @@ function node(key: string, kind: NameNode['kind'], children: string[] = []): Nam
     lines: 1,
     side: 'w',
     style: null,
+    owner: null,
   };
 }
 

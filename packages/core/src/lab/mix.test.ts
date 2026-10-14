@@ -21,6 +21,7 @@ function node(
     lines,
     side: 'w',
     style: null,
+    owner: null,
   };
 }
 

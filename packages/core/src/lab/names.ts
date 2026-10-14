@@ -2,6 +2,7 @@ import { openingIndex } from '../openings/data';
 import type { OpeningGraph } from '../openings/graph';
 import { LABEL_OWN_FAMILY, OpeningsNotLoadedError, labelOfUci } from '../openings/resolve';
 import type { OpeningLabel } from '../openings/types';
+import { type OpeningSide, openingSide } from './opening-side';
 
 /** "Family: Variation, Subvariation" → ["Family", "Variation", "Subvariation"]. */
 export function nameSegments(name: string): string[] {
@@ -49,6 +50,8 @@ export interface NameNode {
   lines: number;
   /** Whose opening it is: the side that plays its defining (last) move. */
   side: 'w' | 'b' | null;
+  /** Openings only: whose opening it is (null for variations). */
+  owner: OpeningSide | null;
   /** Style of its first move: 1.e4 king, 1.d4 queen, anything else flank (ADR 012). */
   style: OpeningLabel | null;
 }
@@ -100,6 +103,7 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
         lines: 0,
         side: null,
         style: null,
+        owner: null,
       };
       nodes.set(key, n);
       parent?.children.push(key);
@@ -166,6 +170,8 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
   const byLines = (a: NameNode, b: NameNode) =>
     b.lines - a.lines || a.ucis.length - b.ucis.length || a.label.localeCompare(b.label);
   const roots = [...nodes.values()].filter((n) => n.parent === null).sort(byLines);
+  const lookup = { get: (key: string) => nodes.get(key) };
+  for (const r of roots) r.owner = openingSide(lookup, r);
 
   return {
     roots: roots.map((r) => r.key),

@@ -28,14 +28,17 @@ the repertoire opens into its openings and variations; Training reuses the same 
 ```ts
 type OpeningSide = 'w' | 'b' | 'both';
 const OPENING_SIDE_OVERRIDES: Readonly<Record<string, OpeningSide>>; // e.g. 'Ruy Lopez': 'both'
-const BOTH_SHARE = 0.25;
+const OPENING_SIDE_WORDS: readonly (readonly [RegExp, 'w' | 'b'])[];
 function openingSide(tree: NameTree, opening: NameNode): OpeningSide;
 ```
 
 1. The override table wins (starts with Ruy Lopez and Italian Game → `both`).
-2. Else, weighting each variation by `lines`: if White and Black each define at least
-   `BOTH_SHARE` of the opening's variations → `both`.
+2. Else the words of the name, first match wins (`OPENING_SIDE_WORDS`): Defense / Declined /
+   Accepted / Countergambit → `b`; Opening / Game / Gambit / Attack / System → `w`.
 3. Else the side of the opening's defining move (`NameNode.side`).
+
+Amended during implementation: a 25% share-of-variations rule was measured on the dataset and
+dropped — a defence's variations are mostly named after White's replies (French 69% White).
 
 `NameNode` gains `owner: OpeningSide` for openings (variations keep `side`). The side filter
 shows an opening under a colour when `owner` is that colour or `both`.
