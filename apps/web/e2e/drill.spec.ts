@@ -904,3 +904,36 @@ test.describe('without the opening graph', () => {
     await expect(page.getByTestId('empty-state')).toBeVisible();
   });
 });
+
+test('training shows the repertoire openings as an album and drills one', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tab', { name: 'Training' }).click();
+  const album = page.getByRole('region', { name: 'Openings of this repertoire' });
+  await expect(album).toBeVisible();
+  await expect(album.getByRole('button', { name: /^Open / }).first()).toBeVisible();
+  // walk down the levels to a variation and drill it
+  const practise = album.getByRole('button', { name: /^Practise / }).first();
+  for (let i = 0; i < 8 && !(await practise.isVisible()); i++) {
+    await album
+      .getByRole('button', { name: /^Open / })
+      .first()
+      .click();
+  }
+  await practise.click();
+  await expect(page.getByTestId('clean-counter')).toBeVisible();
+  await expect(album).toBeHidden();
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(album).toBeVisible();
+});
+
+test('a custom-start repertoire keeps the plain training screen', async ({ page }) => {
+  await ready(page);
+  await importPgnText(
+    page,
+    'Custom start',
+    '[SetUp "1"]\n[FEN "rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1"]\n\n1. e4 e5 *',
+  );
+  await page.getByRole('tab', { name: 'Training' }).click();
+  await expect(page.getByRole('region', { name: 'Openings of this repertoire' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Train all lines/ })).toBeVisible();
+});

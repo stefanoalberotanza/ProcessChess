@@ -237,6 +237,7 @@ export const en = {
   'explore.addBookHelp':
     'Your side plays the most common book move, every opponent reply is included.',
   'train.intro': 'Train the repertoire line by line: the opponent replies by itself.',
+  'train.album': 'Openings of this repertoire',
   'train.all': 'Train all lines ({n})',
   'train.here': 'Train from this position ({n})',
   'train.empty': 'This repertoire has no lines yet.',

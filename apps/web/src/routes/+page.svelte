@@ -14,6 +14,8 @@
     exportPgn,
     lineStatus,
     loadOpeningGraph,
+    buildNameTree,
+    repertoireNames,
     weekId,
     weekSource,
     nodeAtPath,
@@ -31,6 +33,7 @@
   import { app, storage } from '$lib/app.svelte';
   import DrillPanel from '$lib/components/DrillPanel.svelte';
   import ExplorePanel from '$lib/components/ExplorePanel.svelte';
+  import NameAlbum from '$lib/components/NameAlbum.svelte';
   import FenExport from '$lib/components/FenExport.svelte';
   import LabPanel from '$lib/components/LabPanel.svelte';
   import GraphPanel from '$lib/components/GraphPanel.svelte';
@@ -373,6 +376,16 @@
     if (!tree || !selectedId) return;
     await ctl.start(selectedId, tree, here && repAt ? { throughNodeId: repAt.nodeId } : {});
   }
+  const nameTree = $derived(graph ? buildNameTree(graph) : null);
+  /** The selected repertoire's openings as a name tree (empty for a custom start). */
+  const repNames = $derived(nameTree && tree ? repertoireNames(tree, nameTree) : null);
+  /** Drills the repertoire lines under the opening `name`. */
+  async function drillName(name: string | null) {
+    if (!tree || !selectedId || !repNames || !name) return;
+    const level = repNames.nodeForName(name);
+    if (!level) return;
+    await ctl.start(selectedId, tree, { throughNodeIds: repNames.nodesOf(level.key) });
+  }
   async function startReview() {
     if (!tree || !selectedId) return;
     await ctl.startReview(selectedId, tree);
@@ -643,7 +656,21 @@
           onstart={(here) => startTraining(here)}
           onreview={() => startReview()}
           onstop={() => void stopTraining()}
-        />
+        >
+          {#if graph && repNames && repNames.roots.length}
+            <section class="album" aria-label={t('train.album')}>
+              <NameAlbum
+                {graph}
+                names={repNames}
+                {ucis}
+                summaries={lab.summaries}
+                repertoire={lab.repertoire}
+                onpractice={(queue, i) => void drillName(queue[i]?.name ?? null)}
+                onjump={(u) => goTo(u)}
+              />
+            </section>
+          {/if}
+        </DrillPanel>
       {/if}
     </div>
   </section>

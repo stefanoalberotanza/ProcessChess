@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import type { DrillController } from '$lib/drill.svelte';
   import MoveHistory from '$lib/components/MoveHistory.svelte';
   import { formatDate, t } from '$lib/i18n/index.svelte';
@@ -14,9 +15,20 @@
     onstart: (here: boolean) => Promise<void> | void;
     onreview: () => Promise<void> | void;
     onstop: () => void;
+    /** Shown below the buttons while no drill runs (the repertoire's openings). */
+    children?: Snippet;
   }
-  let { ctl, totalLines, linesHere, canStartHere, dueNow, onstart, onreview, onstop }: Props =
-    $props();
+  let {
+    ctl,
+    totalLines,
+    linesHere,
+    canStartHere,
+    dueNow,
+    onstart,
+    onreview,
+    onstop,
+    children,
+  }: Props = $props();
 
   const drill = $derived(ctl.drill);
   let starting = $state(false);
@@ -60,6 +72,7 @@
     {:else if dueNow === 0}
       <p class="muted" data-testid="nothing-due">{t('review.nothingDue')}</p>
     {/if}
+    {@render children?.()}
   {:else}
     <p class="status">
       {#if ctl.review}

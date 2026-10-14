@@ -243,6 +243,7 @@ export const it = {
   'explore.addBookHelp':
     'Il tuo lato gioca la mossa di teoria più frequente, tutte le risposte dell’avversario sono incluse.',
   'train.intro': 'Allena il repertorio linea per linea: l’avversario risponde da solo.',
+  'train.album': 'Aperture di questo repertorio',
   'train.all': 'Allena tutte le linee ({n})',
   'train.here': 'Allena da questa posizione ({n})',
   'train.empty': 'Questo repertorio non ha ancora linee.',
