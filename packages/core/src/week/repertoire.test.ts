@@ -54,6 +54,28 @@ describe('weekRepertoire', () => {
     expect(weekRepertoire(graph, names, 'w', '2026-W43').lines.map((l) => l.name)).not.toEqual(a);
   });
 
+  it('skips an opening whose line is a prefix of a picked one (or the reverse)', () => {
+    // data/openings/b.tsv: the Dragon's practice line is a prefix of the Yugoslav Attack's
+    const all = [...names.all()];
+    const parent = all.find((n) => n.key === 'Sicilian Defense: Dragon Variation')!;
+    const child = all.find((n) => n.key === 'Sicilian Defense: Dragon Variation, Yugoslav Attack')!;
+    const prefixed = {
+      id: 'prefixed',
+      label: 'week.grouping.random',
+      pick: (c: readonly (typeof parent)[], n: number, r: () => number) => [
+        parent,
+        child,
+        ...randomGrouping.pick(c, n, r),
+      ],
+    };
+    const { lines } = weekRepertoire(graph, names, 'b', '2026-W42', prefixed);
+    expect(lines).toHaveLength(WEEK_SIZE);
+    const keys = lines.map((l) => l.ucis.join(' '));
+    for (const a of keys)
+      for (const b of keys) if (a !== b) expect(b.startsWith(`${a} `)).toBe(false);
+    expect(lines[0]!.name).toBe('Sicilian Defense: Dragon Variation');
+  });
+
   it('uses the grouping it is given', () => {
     const first = { id: 'first', label: 'week.grouping.first', pick: randomGrouping.pick };
     expect(weekRepertoire(graph, names, 'b', '2026-W42', first).grouping.id).toBe('first');

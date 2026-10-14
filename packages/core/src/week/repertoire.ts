@@ -42,7 +42,8 @@ export interface WeekLine {
 
 /**
  * The openings of `color` for `week`: named variations whose defining move is `color`'s,
- * ordered by `grouping`, the first `WEEK_SIZE` with distinct practice lines. Deterministic for
+ * ordered by `grouping`, the first `WEEK_SIZE` whose practice lines are distinct and not
+ * prefixes of each other (so the tree has `WEEK_SIZE` leaves). Deterministic for
  * a week and colour. Needs `loadOpenings()`.
  */
 export function weekRepertoire(
@@ -57,13 +58,13 @@ export function weekRepertoire(
     .sort((a, b) => a.key.localeCompare(b.key)); // stable input for the PRNG
   const ordered = grouping.pick(candidates, WEEK_SIZE, seededRandom(`${week}:${color}`));
   const lines: WeekLine[] = [];
-  const seen = new Set<string>();
+  // a line equal to, or a prefix of, another would merge into it in the tree: one line less
+  const overlaps = (a: readonly string[], b: readonly string[]) =>
+    a.every((u, i) => i >= b.length || b[i] === u);
   for (const node of ordered) {
     if (lines.length >= WEEK_SIZE) break;
     const ucis = practiceLine(graph, node.ucis);
-    const key = ucis.join(' ');
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (lines.some((l) => overlaps(l.ucis, ucis))) continue;
     lines.push({ name: node.key, ucis });
   }
   return { grouping: { id: grouping.id, label: grouping.label }, lines };

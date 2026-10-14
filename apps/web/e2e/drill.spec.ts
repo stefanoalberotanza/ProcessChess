@@ -878,3 +878,29 @@ test('practising a repertoire variation in the lab reviews its FSRS cards', asyn
     .click();
   await expect(row.getByTestId('mastery')).toHaveAccessibleName('In your repertoire: known');
 });
+
+test('Training can be left with no repertoire selected', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tab', { name: 'Training' }).click();
+  const list = page.getByRole('region', { name: 'Repertoires' });
+  const white = list.getByRole('button', { name: /^Week \d+ · White/ });
+  await expect(white).toHaveAttribute('aria-pressed', 'true');
+  await white.click(); // deselect
+  await page.waitForTimeout(300);
+  await expect(white).toHaveAttribute('aria-pressed', 'false');
+});
+
+test.describe('without the opening graph', () => {
+  test.use({ serviceWorkers: 'block' });
+  test('the repertoire list still loads', async ({ page }) => {
+    // the graph chunk is the one built from opening-graph.json (hashed name: match its content)
+    await page.route('**/_app/immutable/chunks/*.js', async (route) => {
+      const response = await route.fetch();
+      const body = await response.text();
+      if (body.startsWith(`const d=JSON.parse('[["`)) return route.abort();
+      return route.fulfill({ response, body });
+    });
+    await page.goto('/');
+    await expect(page.getByTestId('empty-state')).toBeVisible();
+  });
+});

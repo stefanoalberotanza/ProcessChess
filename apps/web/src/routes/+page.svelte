@@ -105,9 +105,14 @@
     if (!app.ready || started) return;
     started = true;
     void (async () => {
-      const g = await loadOpeningGraph();
-      graph = g;
-      await ensureWeek(storage(), g);
+      try {
+        const g = await loadOpeningGraph();
+        graph = g;
+        await ensureWeek(storage(), g);
+      } catch (e) {
+        // the repertoires work without the graph (no explore, no week repertoires)
+        console.error('Opening graph not loaded:', e);
+      }
       void lab.refresh();
       await refresh();
       const c = initialParams.get('c');
@@ -165,9 +170,17 @@
     }
   });
 
-  // Training opens on this week's White repertoire when nothing is selected
+  // Training opens on this week's White repertoire when nothing is selected, once per visit
+  // (the user may then deselect it)
+  let weekPicked = false;
   $effect(() => {
-    if (tab !== 'train' || selectedId || !loaded) return;
+    if (tab !== 'train') {
+      weekPicked = false;
+      return;
+    }
+    if (weekPicked || !loaded) return;
+    weekPicked = true;
+    if (selectedId) return;
     const source = weekSource(weekId(new Date()));
     const week = rows.find((r) => r.collection.source === source && r.collection.userColor === 'w');
     if (week && !week.collection.archivedAt) void select(week.collection.id);
