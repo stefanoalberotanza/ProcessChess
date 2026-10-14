@@ -1,7 +1,7 @@
 import { openingIndex } from '../openings/data';
 import type { GraphEdge, OpeningGraph } from '../openings/graph';
 import { OpeningsNotLoadedError } from '../openings/resolve';
-import { nodeNames } from '../openings/continuations';
+import { nodeNames, ownName, positionNode } from '../openings/continuations';
 
 /** Plies asked in a lab session: the first 4 moves of each side. */
 export const LAB_PLIES = 8;
@@ -51,12 +51,8 @@ export function openingLine(
   plies: number = LAB_PLIES,
 ): string[] {
   const line = [...prefix];
-  let node = graph.root;
-  for (const u of prefix) {
-    const edge = graph.children(node).find((e) => e.uci === u);
-    if (!edge) return line;
-    node = edge.child;
-  }
+  let node = positionNode(graph, prefix);
+  if (node === undefined) return line;
   while (line.length < plies) {
     const next: GraphEdge | undefined = graph.children(node)[0];
     if (!next) break;
@@ -77,14 +73,9 @@ export const PRACTICE_MAX_PLIES = 16;
 export function practiceLine(graph: OpeningGraph, ucis: readonly string[]): string[] {
   const names = nodeNames(graph);
   const line = [...ucis];
-  let node = graph.root;
-  let own: string | undefined;
-  for (const u of ucis) {
-    const edge = graph.children(node).find((e) => e.uci === u);
-    if (!edge) return line;
-    node = edge.child;
-    own = names.get(node)?.name ?? own;
-  }
+  let node = positionNode(graph, ucis);
+  if (node === undefined) return line;
+  const own = ownName(graph, node);
   while (line.length < PRACTICE_MAX_PLIES) {
     const next: GraphEdge | undefined = graph.children(node)[0];
     if (!next) break;

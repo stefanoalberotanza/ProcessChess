@@ -231,7 +231,7 @@ export const en = {
   'rep.lineAdded': 'Line added ({n} new moves).',
   'rep.bookAdded': 'Added {lines} book lines ({n} new moves).',
   'explore.search': 'Search openings',
-  'explore.searchPlaceholder': 'Search an opening (e.g. Najdorf)',
+  'explore.searchPlaceholder': 'Search an opening or paste a FEN',
   'explore.fromHere': 'From this position',
   'explore.showVariations': 'Show variations ({n})',
   'explore.hideVariations': 'Hide variations',

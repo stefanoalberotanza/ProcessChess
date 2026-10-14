@@ -1,3 +1,5 @@
+import { toEpd } from '../fen';
+import { INITIAL_FEN, playLine } from '../position';
 import { openingIndex } from './data';
 import type { OpeningGraph } from './graph';
 import { LABEL_OWN_FAMILY, OpeningsNotLoadedError, splitOpeningName } from './resolve';
@@ -14,6 +16,45 @@ export interface Continuation {
 }
 
 const MAX_PLIES = 12;
+
+/**
+ * Graph node of the position after `ucis`, found by EPD: any move order that reaches a book
+ * position (a transposition) finds it. Undefined off book or for illegal moves.
+ */
+export function positionNode(graph: OpeningGraph, ucis: readonly string[]): number | undefined {
+  // fast path: the moves follow book edges (the common case, no chess.js needed)
+  let node = graph.root;
+  for (const uci of ucis) {
+    const edge = graph.children(node).find((e) => e.uci === uci);
+    if (!edge) return transposed(graph, ucis);
+    node = edge.child;
+  }
+  return node;
+}
+
+/** The position after `ucis` looked up by EPD (moves that leave the book order). */
+function transposed(graph: OpeningGraph, ucis: readonly string[]): number | undefined {
+  const played = playLine(INITIAL_FEN, ucis);
+  return played ? graph.nodeOf(toEpd(played.fen)) : undefined;
+}
+
+/** The names of the positions on the shortest book path to `node`, from the root. */
+function namesOnPath(graph: OpeningGraph, node: number): string[] {
+  const names = nodeNames(graph);
+  const out: string[] = [];
+  let at = graph.root;
+  for (const uci of graph.pathTo(node)) {
+    at = graph.children(at).find((e) => e.uci === uci)!.child;
+    const name = names.get(at)?.name;
+    if (name !== undefined) out.push(name);
+  }
+  return out;
+}
+
+/** The position's own name: the last named position on its shortest book path. */
+export function ownName(graph: OpeningGraph, node: number): string | undefined {
+  return namesOnPath(graph, node).at(-1);
+}
 const cache = new WeakMap<OpeningGraph, Map<number, { eco: string; name: string }>>();
 
 /** Graph node → dataset name, built once per graph. Needs `loadOpenings()`. */
@@ -47,13 +88,12 @@ export function continuationsFrom(graph: OpeningGraph, ucis: readonly string[]):
     return styles.has(family) ? null : family;
   };
 
-  let start = graph.root;
+  const start = positionNode(graph, ucis);
+  if (start === undefined) return [];
   let current: string | null = null;
-  for (const uci of ucis) {
-    const edge = graph.children(start).find((e) => e.uci === uci);
-    if (!edge) return [];
-    start = edge.child;
-    current = familyOf(start) ?? current;
+  for (const name of namesOnPath(graph, start)) {
+    const { family } = splitOpeningName(name);
+    if (!styles.has(family)) current = family;
   }
 
   const found = new Map<string, { node: number; name: string; via: string[] }>();
@@ -96,14 +136,9 @@ export function continuationsFrom(graph: OpeningGraph, ucis: readonly string[]):
  */
 export function isDictionaryLeaf(graph: OpeningGraph, ucis: readonly string[]): boolean {
   const names = nodeNames(graph);
-  let node = graph.root;
-  let own: string | undefined;
-  for (const uci of ucis) {
-    const edge = graph.children(node).find((e) => e.uci === uci);
-    if (!edge) return false;
-    node = edge.child;
-    own = names.get(node)?.name ?? own;
-  }
+  const node = positionNode(graph, ucis);
+  if (node === undefined) return false;
+  const own = ownName(graph, node);
   if (own === undefined) return false;
   const isAncestor = (name: string) =>
     name === own || own!.startsWith(`${name}:`) || own!.startsWith(`${name},`);
@@ -130,14 +165,9 @@ export function isDictionaryLeaf(graph: OpeningGraph, ucis: readonly string[]): 
 export function branchesFrom(graph: OpeningGraph, ucis: readonly string[]): Continuation[] {
   const names = nodeNames(graph);
   const styles = new Set(Object.values(LABEL_OWN_FAMILY).filter((f) => f !== null));
-  let start = graph.root;
-  let own: string | undefined;
-  for (const uci of ucis) {
-    const edge = graph.children(start).find((e) => e.uci === uci);
-    if (!edge) return [];
-    start = edge.child;
-    own = names.get(start)?.name ?? own;
-  }
+  const start = positionNode(graph, ucis);
+  if (start === undefined) return [];
+  const own = ownName(graph, start);
   const passThrough = (name: string) =>
     styles.has(name) ||
     (own !== undefined &&
@@ -203,12 +233,8 @@ export function sidesFrom(
   const names = nodeNames(graph);
   const styles = new Set(Object.values(LABEL_OWN_FAMILY).filter((f) => f !== null));
   const sides = { w: false, b: false };
-  let start = graph.root;
-  for (const uci of ucis) {
-    const edge = graph.children(start).find((e) => e.uci === uci);
-    if (!edge) return sides;
-    start = edge.child;
-  }
+  const start = positionNode(graph, ucis);
+  if (start === undefined) return sides;
   // positions are merged by EPD, so the side to move (and the depth parity) is the same on
   // every path to a node
   const seen = new Set([start]);
@@ -229,14 +255,10 @@ export function sidesFrom(
 
 /** The dataset name of the deepest named position along `ucis`; `null` when none is named. */
 export function deepestName(graph: OpeningGraph, ucis: readonly string[]): string | null {
-  const names = nodeNames(graph);
-  let node = graph.root;
-  let name: string | null = null;
-  for (const uci of ucis) {
-    const edge = graph.children(node).find((e) => e.uci === uci);
-    if (!edge) break;
-    node = edge.child;
-    name = names.get(node)?.name ?? name;
+  // the longest prefix of `ucis` that is a book position, whatever its move order
+  for (let n = ucis.length; n >= 0; n--) {
+    const node = positionNode(graph, ucis.slice(0, n));
+    if (node !== undefined) return ownName(graph, node) ?? null;
   }
-  return name;
+  return null;
 }

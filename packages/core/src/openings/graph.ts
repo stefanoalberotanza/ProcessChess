@@ -185,6 +185,74 @@ export function searchOpenings(
   return found.slice(0, limit);
 }
 
+export interface PositionSearchResult {
+  /** The position's opening: its own name, or the nearest named position on its book path. */
+  position: OpeningSearchResult;
+  /** Named openings reachable from the position, shortest line first. */
+  reachable: OpeningSearchResult[];
+}
+
+/**
+ * Looks up a position by FEN, whatever move order reached it (the graph merges
+ * transpositions by EPD). Null for an invalid FEN or a position outside the dataset.
+ * Needs `loadOpenings()`.
+ */
+export function searchPosition(
+  graph: OpeningGraph,
+  fen: string,
+  limit = 20,
+): PositionSearchResult | null {
+  const names = openingIndex();
+  if (!names) throw new OpeningsNotLoadedError();
+  let epd: string;
+  try {
+    epd = toEpd(new Chess(fen.trim()).fen());
+  } catch {
+    return null;
+  }
+  const start = graph.nodeOf(epd);
+  if (start === undefined) return null;
+  const uci = graph.pathTo(start);
+  // nearest named position on the shortest book path, the position itself first
+  const chess = new Chess();
+  const epds = [toEpd(chess.fen())];
+  for (const u of uci) {
+    play(chess, u);
+    epds.push(toEpd(chess.fen()));
+  }
+  let at = epds.length - 1;
+  while (at > 0 && !names.has(epds[at]!)) at--;
+  const named = names.get(epds[at]!);
+  const position: OpeningSearchResult = {
+    eco: named?.[0] ?? '',
+    name: named?.[1] ?? '',
+    epd: epds[at]!,
+    uci: uci.slice(0, at),
+  };
+  // breadth-first over the descendants: paths come out shortest first
+  const reachable: OpeningSearchResult[] = [];
+  const seen = new Set([start]);
+  const queue: { node: number; fen: string; uci: string[] }[] = [
+    { node: start, fen: new Chess(fen.trim()).fen(), uci },
+  ];
+  for (let q = 0; q < queue.length && reachable.length < limit; q++) {
+    const cur = queue[q]!;
+    for (const e of graph.children(cur.node)) {
+      if (seen.has(e.child)) continue;
+      seen.add(e.child);
+      const c = new Chess(cur.fen);
+      play(c, e.uci);
+      const next = { node: e.child, fen: c.fen(), uci: [...cur.uci, e.uci] };
+      const hit = names.get(toEpd(next.fen));
+      if (hit && reachable.length < limit) {
+        reachable.push({ eco: hit[0], name: hit[1], epd: toEpd(next.fen), uci: next.uci });
+      }
+      queue.push(next);
+    }
+  }
+  return { position, reachable };
+}
+
 /**
  * True when `fen` is a position of the openings dataset: on a book line, whether or not the
  * dataset gives that position a name. "Out of theory" means this is false.

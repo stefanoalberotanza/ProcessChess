@@ -237,7 +237,7 @@ export const it = {
   'rep.lineAdded': 'Linea aggiunta ({n} mosse nuove).',
   'rep.bookAdded': 'Aggiunte {lines} linee di teoria ({n} mosse nuove).',
   'explore.search': 'Cerca aperture',
-  'explore.searchPlaceholder': 'Cerca un’apertura (es. Najdorf)',
+  'explore.searchPlaceholder': 'Cerca un’apertura o incolla un FEN',
   'explore.fromHere': 'Da questa posizione',
   'explore.showVariations': 'Mostra varianti ({n})',
   'explore.hideVariations': 'Nascondi varianti',

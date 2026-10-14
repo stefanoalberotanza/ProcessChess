@@ -98,6 +98,20 @@ test('the home page always shows the Import PGN button, with an empty-state invi
   await expect(dialog).toBeHidden();
 });
 
+test('a pasted FEN finds the opening whatever move order reached it', async ({ page }) => {
+  await ready(page);
+  await explore(page);
+  // the Scotch Game position, reached here by 1.Nf3 Nc6 2.e4 e5 3.d4
+  await page
+    .getByRole('searchbox')
+    .fill('r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R b KQkq - 0 3');
+  const found = page.getByRole('list', { name: 'Openings found' });
+  await expect(found.getByRole('button').first()).toHaveAccessibleName('Open Scotch Game');
+  await expect(
+    found.getByRole('button', { name: 'Open Scotch Game: Göring Gambit', exact: true }),
+  ).not.toHaveCount(0);
+});
+
 test('explore the ECO graph, save a line, add the book theory and train it', async ({ page }) => {
   await ready(page);
   await explore(page);
@@ -584,6 +598,19 @@ test('from this position: every dictionary branch, grouped, variations on demand
   );
 });
 
+test('from this position works after a transposition (Scotch Game by 1.Nf3)', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tab', { name: 'Explore' }).click();
+  // 1.Nf3 Nc6 2.e4 e5 3.d4 is the C44 Scotch Game position, off the dataset's move order
+  for (const san of ['Nf3', 'Nc6', 'e4', 'e5', 'd4']) await playSan(page, san);
+  await expect(page.getByRole('tab', { name: /^From this position/ })).toBeEnabled();
+  await expect(page.getByRole('tab', { name: /^From this position/ })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.getByRole('list', { name: 'From this position' })).toContainText('Scotch Game');
+});
+
 test('from this position is off for a collection with a custom start', async ({ page }) => {
   await ready(page);
   await explore(page);
@@ -606,7 +633,7 @@ test('daily mix: five variations, stable, changes on demand, follows practice', 
   await explore(page);
   await expect(page.getByRole('searchbox')).toHaveAttribute(
     'placeholder',
-    'Search an opening (e.g. Najdorf)',
+    'Search an opening or paste a FEN',
   );
   await page.getByRole('tab', { name: 'Today' }).click();
   const card = page.getByTestId('mix-card');

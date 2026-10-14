@@ -13,6 +13,7 @@ import {
   isBookPosition,
   loadOpeningGraph,
   searchOpenings,
+  searchPosition,
 } from './graph';
 
 // Expectations derive from data/openings/*.tsv, not from memory.
@@ -180,5 +181,48 @@ describe('isBookPosition', () => {
   it('is false outside the dataset', () => {
     expect(isBookPosition(graph, fenAfter(['h4', 'h5', 'Rh3']))).toBe(false);
     expect(isBookPosition(graph, INITIAL_FEN)).toBe(true);
+  });
+});
+
+describe('searchPosition', () => {
+  // the Scotch Game position (C44 in c.tsv), reached by a non-book move order
+  const SCOTCH_TRANSPOSED = fenAfter(['Nf3', 'Nc6', 'e4', 'e5', 'd4']);
+
+  it('finds a position reached by a different move order', () => {
+    expect(toEpd(SCOTCH_TRANSPOSED)).toBe(toEpd(fenAfter(['e4', 'e5', 'Nf3', 'Nc6', 'd4'])));
+    const r = searchPosition(graph, SCOTCH_TRANSPOSED)!;
+    expect(r.position).toMatchObject({ eco: 'C44', name: 'Scotch Game' });
+    expect(r.position.uci).toEqual(['e2e4', 'e7e5', 'g1f3', 'b8c6', 'd2d4']);
+  });
+
+  it('accepts a pasted FEN with any move counters', () => {
+    const r = searchPosition(
+      graph,
+      'r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R b KQkq - 0 3',
+    );
+    expect(r?.position.name).toBe('Scotch Game');
+  });
+
+  it('lists named openings reachable from the position, shortest first', () => {
+    const r = searchPosition(graph, SCOTCH_TRANSPOSED, 500)!;
+    const names = r.reachable.map((o) => o.name);
+    expect(names).toContain('Scotch Game: Göring Gambit');
+    expect(names).toContain('Scotch Game: Göring Gambit, Main Line');
+    expect(names).not.toContain('Scotch Game: Benima Defense');
+    const lengths = r.reachable.map((o) => o.uci.length);
+    expect(lengths).toEqual([...lengths].sort((a, b) => a - b));
+    for (const o of r.reachable) expect(o.uci.slice(0, 5)).toEqual(r.position.uci);
+  });
+
+  it('names an unnamed book position after its nearest named ancestor', () => {
+    const fen = fenAfter(['e4', 'e5', 'Nf3', 'Nc6', 'd4', 'exd4', 'c3', 'dxc3', 'Nxc3']);
+    const r = searchPosition(graph, fen)!;
+    expect(r.position.name).toMatch(/^Scotch Game/);
+    expect(r.position.uci.length).toBeLessThanOrEqual(9);
+  });
+
+  it('returns null for invalid or out-of-book positions', () => {
+    expect(searchPosition(graph, 'not a fen')).toBeNull();
+    expect(searchPosition(graph, fenAfter(['a3', 'h6', 'a4', 'h5', 'Ra3', 'Rh6']))).toBeNull();
   });
 });

@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadOpenings } from './data';
 import { type OpeningGraph, loadOpeningGraph } from './graph';
-import { branchesFrom, commonPrefix, deepestName, sidesFrom } from './continuations';
+import {
+  branchesFrom,
+  commonPrefix,
+  continuationsFrom,
+  deepestName,
+  sidesFrom,
+} from './continuations';
 
 // expectations come from data/openings/c.tsv
 const KNIGHT = ['e2e4', 'e7e5', 'g1f3']; // King's Knight Opening
@@ -28,8 +34,34 @@ describe('branchesFrom', () => {
     expect(out.some((b) => b.name === "King's Knight Opening")).toBe(false);
   });
 
+  it('finds the position by EPD when the moves reach it off the book order (Scotch Game)', () => {
+    // 1.Nf3 Nc6 2.e4 e5 3.d4 transposes to the Scotch Game (C44, data/openings/c.tsv)
+    const transposed = ['g1f3', 'b8c6', 'e2e4', 'e7e5', 'd2d4'];
+    const book = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'd2d4'];
+    const out = branchesFrom(graph, transposed);
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.map((b) => [b.name, b.via])).toEqual(
+      branchesFrom(graph, book).map((b) => [b.name, b.via]),
+    );
+    for (const b of out) expect(b.ucis).toEqual([...transposed, ...b.via]);
+  });
+
   it('is empty off book', () => {
     expect(branchesFrom(graph, ['h2h4', 'h7h5', 'h1h3'])).toEqual([]);
+  });
+});
+
+describe('transpositions', () => {
+  // 1.Nf3 Nc6 2.e4 e5 3.d4 reaches the Scotch Game (C44, data/openings/c.tsv)
+  const transposed = ['g1f3', 'b8c6', 'e2e4', 'e7e5', 'd2d4'];
+  const book = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'd2d4'];
+
+  it('give the same name, sides and continuations as the book order', () => {
+    expect(deepestName(graph, transposed)).toBe('Scotch Game');
+    expect(sidesFrom(graph, transposed)).toEqual(sidesFrom(graph, book));
+    expect(continuationsFrom(graph, transposed).map((c) => c.name)).toEqual(
+      continuationsFrom(graph, book).map((c) => c.name),
+    );
   });
 });
 

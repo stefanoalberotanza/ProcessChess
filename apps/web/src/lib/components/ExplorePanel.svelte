@@ -26,6 +26,7 @@
     lineSrsState,
     rollupMastery,
     searchOpenings,
+    searchPosition,
   } from '@processchess/core';
   import type { LabRunSummary } from '@processchess/db';
   import type { CardMap, SrsCard, Tree } from '@processchess/core';
@@ -167,9 +168,16 @@
     onjump(target);
   }
 
+  /** A pasted FEN (eight ranks) searches by position, whatever move order reached it. */
+  function search(g: OpeningGraph, q: string) {
+    if (q.trim().split(/\s/)[0]!.split('/').length !== 8) return searchOpenings(g, q, 60);
+    const found = searchPosition(g, q, 60);
+    if (!found) return [];
+    return [found.position, ...found.reachable].filter((r) => r.name);
+  }
   const results = $derived(
     graph && query.trim().length >= 2
-      ? searchOpenings(graph, query, 60)
+      ? search(graph, query)
           .filter((r) => sideFilter === 'all' || moverOfLast(r.uci) === sideFilter)
           .slice(0, 12)
       : [],
