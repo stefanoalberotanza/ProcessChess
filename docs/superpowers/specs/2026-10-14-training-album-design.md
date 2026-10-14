@@ -34,8 +34,8 @@ interface RepertoireNameTree extends Pick<NameTree, 'roots' | 'get' | 'nodeForNa
 function repertoireNames(tree: Tree, names: NameTree): RepertoireNameTree;
 ```
 
-- Classifies the repertoire with `classifyTree` (dataset names by position, transpositions
-  included). Needs `loadOpenings()`.
+- Names each repertoire node by the dataset name of its position (`openingIndex().get(node.epd)`,
+  so transpositions count). Needs `loadOpenings()`.
 - Keeps every `NameNode` of `names` reached by a repertoire node (by its classification name via
   `names.nodeForName`) and all its ancestors; `children` and `roots` are filtered to kept keys,
   order preserved.
