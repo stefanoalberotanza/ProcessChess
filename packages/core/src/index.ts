@@ -27,3 +27,4 @@ export * from './pgn';
 export * from './position';
 export * from './srs';
 export * from './tree';
+export * from './week';
