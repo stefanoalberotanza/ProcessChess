@@ -29,17 +29,21 @@ beforeAll(async () => {
 });
 
 describe('weekRepertoire', () => {
-  it.each(['w', 'b'] as const)('picks %s openings: 3 named variations of that side', (color) => {
-    const { grouping, lines } = weekRepertoire(graph, names, color, '2026-W42');
-    expect(grouping).toEqual({ id: 'random', label: 'week.grouping.random' });
-    expect(lines).toHaveLength(WEEK_SIZE);
-    for (const l of lines) {
-      expect(datasetNames.has(l.name)).toBe(true);
-      const node = [...names.all()].find((n) => n.key === l.name)!;
-      expect(node.side).toBe(color);
-      expect(l.ucis).toEqual(practiceLine(graph, node.ucis));
-    }
-  });
+  it.each(['w', 'b'] as const)(
+    'picks %s lines: 3 variations or opening main lines of that side',
+    (color) => {
+      const { grouping, lines } = weekRepertoire(graph, names, color, '2026-W42');
+      expect(grouping).toEqual({ id: 'random', label: 'week.grouping.random' });
+      expect(lines).toHaveLength(WEEK_SIZE);
+      for (const l of lines) {
+        expect(datasetNames.has(l.name)).toBe(true);
+        const node = [...names.all()].find((n) => n.key === l.name)!;
+        if (node.kind === 'opening') expect([color, 'both']).toContain(node.owner);
+        else expect(node.side).toBe(color);
+        expect(l.ucis).toEqual(practiceLine(graph, node.ucis));
+      }
+    },
+  );
 
   it('has distinct practice lines', () => {
     for (const week of ['2026-W40', '2026-W41', '2026-W42', '2026-W43', '2026-W44']) {
@@ -86,6 +90,32 @@ describe('weekRepertoire', () => {
     expect(
       weekRepertoire(graph, names, bong.side!, '2026-W42', first).lines.map((l) => l.name),
     ).toEqual(['Bongcloud Attack']);
+  });
+
+  it('picks an opening as its main line (data/openings/b.tsv B20 Sicilian Defense)', () => {
+    const sicilian = names.get('Sicilian Defense')!;
+    const first = {
+      id: 'first',
+      label: 'week.grouping.random',
+      pick: (c: readonly (typeof sicilian)[]) => c.filter((n) => n.key === 'Sicilian Defense'),
+    };
+    const { lines } = weekRepertoire(graph, names, 'b', '2026-W42', first);
+    expect(lines).toEqual([{ name: 'Sicilian Defense', ucis: practiceLine(graph, sicilian.ucis) }]);
+  });
+
+  it("never offers an opening of the other side (data/openings/a.tsv A02 Bird Opening is White's)", () => {
+    const seen: string[] = [];
+    const spy = {
+      id: 'spy',
+      label: 'week.grouping.random',
+      pick: (c: readonly { key: string }[]) => {
+        seen.push(...c.map((n) => n.key));
+        return [];
+      },
+    };
+    weekRepertoire(graph, names, 'b', '2026-W42', spy);
+    expect(seen).not.toContain('Bird Opening');
+    expect(seen).toContain('Sicilian Defense');
   });
 
   it('uses the grouping it is given', () => {
