@@ -51,3 +51,37 @@ export function repertoireNames(tree: Tree, names: NameTree): RepertoireNameTree
     nodesOf: (key) => nodesOf.get(key) ?? [],
   };
 }
+
+/** A line of a repertoire, by the name where it ends. */
+export interface RepertoireLine {
+  /** Dataset name of the line's deepest named position (a variation, or an opening). */
+  name: string;
+  /** The repertoire node of that named position. */
+  nodeId: string;
+}
+
+/**
+ * One entry per line of the repertoire: the deepest named position of each leaf's path, main line
+ * first, each name once. Empty for a custom start position. Needs `loadOpenings()`.
+ */
+export function repertoireLines(tree: Tree, names: NameTree): RepertoireLine[] {
+  const index = openingIndex();
+  if (!index) throw new OpeningsNotLoadedError();
+  const root = tree.nodes.get(tree.rootId);
+  if (!root || root.epd !== STANDARD_EPD) return [];
+  const out = new Map<string, RepertoireLine>();
+  const visit = (id: string, named: RepertoireLine | null) => {
+    const node = tree.nodes.get(id)!;
+    const name = index.get(node.epd)?.[1];
+    const level = name ? names.nodeForName(name) : undefined;
+    const here = level ? { name: level.key, nodeId: id } : named;
+    const kids = tree.children.get(id) ?? [];
+    if (kids.length === 0) {
+      if (here && !out.has(here.name)) out.set(here.name, here);
+      return;
+    }
+    for (const k of kids) visit(k, here);
+  };
+  visit(tree.rootId, null);
+  return [...out.values()];
+}

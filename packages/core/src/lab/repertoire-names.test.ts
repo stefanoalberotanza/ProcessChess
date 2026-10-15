@@ -4,7 +4,7 @@ import { loadOpenings } from '../openings/data';
 import { loadOpeningGraph } from '../openings/graph';
 import { treeFromPgn } from '../pgn';
 import { type NameTree, buildNameTree } from './names';
-import { repertoireNames } from './repertoire-names';
+import { repertoireLines, repertoireNames } from './repertoire-names';
 
 // names from data/openings/b.tsv (B90 Najdorf) and c.tsv (C44 Scotch Game)
 const NAJDORF = 'Sicilian Defense: Najdorf Variation';
@@ -69,5 +69,35 @@ describe('repertoireNames', () => {
     const r = repertoireNames(tree, names);
     expect(r.roots).toEqual([]);
     expect([...r.all()]).toEqual([]);
+  });
+});
+
+describe('repertoireLines', () => {
+  it('is one entry per line: the name where the line ends', () => {
+    // b.tsv B90 Najdorf; the line goes on past the named position
+    const tree = rep('1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 6. Kd2 *');
+    const lines = repertoireLines(tree, names);
+    expect(lines.map((l) => l.name)).toEqual(['Sicilian Defense: Najdorf Variation']);
+    expect(tree.nodes.get(lines[0]!.nodeId)!.uci).toBe('a7a6');
+  });
+
+  it('lists each line once, an opening main line by its opening name', () => {
+    // c.tsv C44 Scotch Game (1. e4 e5 2. Nf3 Nc6 3. d4) and b.tsv B90 Najdorf, as Black/White mix
+    const tree = rep(
+      '1. e4 c5 (1... e5 2. Nf3 Nc6 3. d4) 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 *',
+      'w',
+    );
+    expect(repertoireLines(tree, names).map((l) => l.name)).toEqual([
+      'Sicilian Defense: Najdorf Variation',
+      'Scotch Game',
+    ]);
+  });
+
+  it('is empty for a custom start position', () => {
+    const tree = rep(
+      '[SetUp "1"]\n[FEN "rnbqkbnr/pppppppp/8/8/8/8/1PPPPPPP/RNBQKBNR w KQkq - 0 1"]\n\n1. e4 e5 *',
+      'w',
+    );
+    expect(repertoireLines(tree, names)).toEqual([]);
   });
 });

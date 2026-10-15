@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type NameNode, type RepertoireNameTree, openingOf, weekOf } from '@processchess/core';
+  import { type RepertoireLine, weekOf } from '@processchess/core';
   import type { Collection } from '@processchess/db';
   import { formatDate, t } from '$lib/i18n/index.svelte';
 
@@ -21,8 +21,8 @@
     oncreate: (name: string, color: 'w' | 'b') => void;
     onimport: () => void;
     ontogglearchive: (row: RepertoireRow) => void;
-    /** The selected repertoire's openings and variations (null for a custom start). */
-    contents?: RepertoireNameTree | null;
+    /** The selected repertoire's lines, by the name where each ends (empty for a custom start). */
+    lines?: RepertoireLine[];
     /** Moves the board to a repertoire node. */
     onjumpnode?: (nodeId: string) => void;
   }
@@ -35,13 +35,9 @@
     oncreate,
     onimport,
     ontogglearchive,
-    contents = null,
+    lines = [],
     onjumpnode,
   }: Props = $props();
-
-  /** A variation reads as its own segments below the opening ("Najdorf Variation"). */
-  const labelOf = (tree: RepertoireNameTree, n: NameNode) =>
-    n.kind === 'opening' ? n.key : n.key.slice(openingOf(tree, n).key.length + 2) || n.label;
 
   let creating = $state(false);
   let name = $state('');
@@ -92,31 +88,13 @@
                 : t('home.never')}
             </span>
           </button>
-          {#if row.collection.id === selectedId && contents && contents.roots.length}
-            {@const tree = contents}
+          {#if row.collection.id === selectedId && lines.length}
             <ul class="contents" aria-label={t('rep.contents')}>
-              {#each tree.roots as key (key)}
-                {@const o = tree.get(key)!}
+              {#each lines as line (line.name)}
                 <li>
-                  <button
-                    type="button"
-                    class="node opening"
-                    onclick={() => onjumpnode?.(tree.nodesOf(key)[0]!)}>{labelOf(tree, o)}</button
+                  <button type="button" class="node" onclick={() => onjumpnode?.(line.nodeId)}
+                    >{line.name}</button
                   >
-                  {#if o.children.length}
-                    <ul>
-                      {#each o.children as v (v)}
-                        <li>
-                          <button
-                            type="button"
-                            class="node"
-                            onclick={() => onjumpnode?.(tree.nodesOf(v)[0]!)}
-                            >{labelOf(tree, tree.get(v)!)}</button
-                          >
-                        </li>
-                      {/each}
-                    </ul>
-                  {/if}
                 </li>
               {/each}
             </ul>
@@ -161,14 +139,10 @@
 </section>
 
 <style>
-  .contents,
-  .contents ul {
+  .contents {
     list-style: none;
     margin: 0.2rem 0 0.4rem;
     padding-left: 0.8rem;
-  }
-  .contents ul {
-    margin: 0;
   }
   .node {
     border: none;
@@ -177,9 +151,6 @@
     color: var(--accent);
     text-align: left;
     font-size: 0.85rem;
-  }
-  .node.opening {
-    font-weight: 600;
   }
   .badge {
     font-size: 0.75rem;
