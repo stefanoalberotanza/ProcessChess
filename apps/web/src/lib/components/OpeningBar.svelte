@@ -14,8 +14,17 @@
     outOfRepertoire?: string | null;
     /** Lab: SAN of a move just played that is not the opening's move. */
     outOfLine?: string | null;
+    /** Today: the name of the opening being trained, shown instead of the name of the position. */
+    fixedName?: string | null;
   }
-  let { movesSan, fen, graph, outOfRepertoire = null, outOfLine = null }: Props = $props();
+  let {
+    movesSan,
+    fen,
+    graph,
+    outOfRepertoire = null,
+    outOfLine = null,
+    fixedName = null,
+  }: Props = $props();
 
   // the openings dataset is loaded with the app (app.ready)
   // label › opening › variation (ADR 012): one-move names are style labels, not openings
@@ -29,7 +38,12 @@
 
 <div class="opening-bar" aria-live="polite" data-testid="opening-bar">
   <!-- only the deepest level; the full path is under the board (OpeningPath) -->
-  {#if c?.variation}
+  {#if fixedName}
+    <span class="level" data-level="puzzle">
+      <span class="tag">{t('opening.level.puzzle')}</span>
+      <span class="name">{fixedName}</span>
+    </span>
+  {:else if c?.variation}
     <span class="level" data-level="variation">
       <span class="tag">{t('opening.level.variation')}</span>
       <span class="name">{c.variation.name}</span>
@@ -45,7 +59,7 @@
       <span class="badge label" data-testid="opening-label">{t(`opening.label.${c.label}`)}</span>
     </span>
   {/if}
-  {#if !c?.label}
+  {#if !c?.label && !fixedName}
     {#if movesSan === null}
       <span class="muted">{t('opening.customStart')}</span>
     {:else}

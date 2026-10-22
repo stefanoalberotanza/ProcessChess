@@ -146,6 +146,10 @@ export class TodayController {
   get sansPlayed(): string[] {
     return this.recall ? this.recall.sans.slice(0, this.shown) : [];
   }
+  /** Name of the opening this puzzle trains: the deepest dataset name on its whole line. */
+  get lineName(): string | null {
+    return this.recall ? nameAt(this.recall.sans) : null;
+  }
   get lastMove(): [string, string] | undefined {
     const uci = this.recall && this.shown > 0 ? this.recall.ucis[this.shown - 1] : null;
     if (!uci) return undefined;

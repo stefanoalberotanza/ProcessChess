@@ -123,6 +123,17 @@ test('a wrong then a right move costs one heart and keeps the combo at 0', async
   // (packages/core/src/today/run.test.ts): a first-try right move needs foreknowledge of the move.
 });
 
+test('the opening bar names the opening of the puzzle from the first move', async ({ page }) => {
+  await openToday(page);
+  await startSession(page);
+  const name = page.getByTestId('opening-bar').locator('[data-level="puzzle"] .name');
+  await expect(name).toHaveText(/\S/, LONG);
+  const before = await name.innerText();
+  // a mistake does not change what is being trained
+  await playWrong(page);
+  await expect(name).toHaveText(before);
+});
+
 test('after the first move, a reload shows Done for today', async ({ page }) => {
   await openToday(page);
   await startSession(page);

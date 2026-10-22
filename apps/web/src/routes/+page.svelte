@@ -538,7 +538,14 @@
   </aside>
 
   <section class="center" aria-label={t('board.label')}>
-    <OpeningBar movesSan={barMoves} fen={boardFen} {graph} {outOfRepertoire} {outOfLine} />
+    <OpeningBar
+      movesSan={barMoves}
+      fen={boardFen}
+      {graph}
+      {outOfRepertoire}
+      {outOfLine}
+      fixedName={todaying ? today.lineName : null}
+    />
     <Board
       maxSize={tab === 'graph' ? 380 : 520}
       fen={boardFen}
