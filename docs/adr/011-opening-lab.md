@@ -1,6 +1,8 @@
 # ADR 011 — Opening lab
 
 - Status: accepted
+- Amended 2026-10-15: the by-name list and "From this position" are replaced by the Lines view,
+  and the name tree has no families (Opening › Variation, ADR 012 "Name tree").
 - Date: 2026-10-09
 
 ## Context
@@ -13,8 +15,10 @@ should be kept.
 
 - **Navigation by level** (revised): a click on an opening _enters_ it — the board moves to its
   position and the list shows the next level; ▶ practises it. The **by name** list is a
-  hierarchy built from the dataset names (`buildNameTree`: Family → Subfamily → Variation, see ADR 012; originally Family → Variation → Subvariation;
-  150 families, 3,280 levels, 103 of them groups without a position of their own), with a
+  hierarchy built from the dataset names (`buildNameTree`: Opening → Variation → Subvariation
+  since 2026-10-15, see ADR 012; before that Family → Subfamily → Variation, and originally
+  Family → Variation → Subvariation; 180 openings, 3,274 levels, 120 of them groups without a
+  position of their own), with a
   breadcrumb to go back up. The level shown follows the board: it is the name of the position
   (deepest named one on the path), so moves played on the board, the graph or the move list move
   the level too. Because names and moves do not nest the same way (a variation can be reached
@@ -65,7 +69,10 @@ plies along the most played moves, which made a short name practise one of its d
 (Caro-Kann Defense ran into a Caro-Kann variation, and one run ticked both). `practiceLine`
 extends a name only while the next position is unnamed or has the same name, and stops before
 any other name, so two names never share a line. Families and subfamilies are containers: only
-variations are practised, and container progress is the roll-up of their variations. Old lab
+variations are practised, and container progress is the roll-up of their variations.
+(2026-10-15: there are no families any more. Openings are practised too: the week repertoire
+picks an opening as its main line and Training drills an opening's repertoire lines. The
+containers are the groups without a position of their own, ADR 012.) Old lab
 runs on changed lines stay in the log and no longer count.
 
 **Repertoire backbone (2026-10-13).** Lab moves that are repertoire moves feed FSRS, and the Today

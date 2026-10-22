@@ -10,6 +10,7 @@ function node(key: string, kind: NameNode['kind'], children: string[] = []): Nam
     parent: null,
     children,
     own: true,
+    name: key,
     eco: '',
     ucis: [],
     lines: 1,

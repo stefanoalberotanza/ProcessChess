@@ -54,9 +54,13 @@ export function weekRepertoire(
   grouping: WeekGrouping = randomGrouping,
 ): { grouping: { id: string; label: string }; lines: WeekLine[] } {
   const candidates = [...tree.all()]
-    // a line: a variation of this side, or the main line of an opening of this side (or both)
-    .filter((n) =>
-      n.kind === 'opening' ? n.owner === color || n.owner === 'both' : n.side === color,
+    // a line: a variation of this side, or the main line of an opening of this side (or both);
+    // a group without a position of its own is a container, not a line (its name is not a
+    // dataset name)
+    .filter(
+      (n) =>
+        n.own &&
+        (n.kind === 'opening' ? n.owner === color || n.owner === 'both' : n.side === color),
     )
     .sort((a, b) => a.key.localeCompare(b.key)); // stable input for the PRNG
   const ordered = grouping.pick(candidates, WEEK_SIZE, seededRandom(`${week}:${color}`));
@@ -68,7 +72,7 @@ export function weekRepertoire(
     if (lines.length >= WEEK_SIZE) break;
     const ucis = practiceLine(graph, node.ucis);
     if (lines.some((l) => overlaps(l.ucis, ucis))) continue;
-    lines.push({ name: node.key, ucis });
+    lines.push({ name: node.name!, ucis });
   }
   return { grouping: { id: grouping.id, label: grouping.label }, lines };
 }

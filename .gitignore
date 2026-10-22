@@ -9,3 +9,10 @@ coverage/
 *.sqlite
 test-results/
 playwright-report/
+
+# superpowers visual companion sessions (local, may hold a server token)
+.superpowers/brainstorm/
+
+# superpowers subagent-driven-development workspaces (ledgers, briefs, reports)
+.superpowers/sdd/
+.worktrees/

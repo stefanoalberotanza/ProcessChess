@@ -45,6 +45,15 @@ describe('weekRepertoire', () => {
     },
   );
 
+  it('picks only dataset names, never a group without a position of its own', () => {
+    for (let w = 1; w <= 52; w++)
+      for (const color of ['w', 'b'] as const) {
+        const week = `2026-W${String(w).padStart(2, '0')}`;
+        for (const l of weekRepertoire(graph, names, color, week).lines)
+          expect(datasetNames.has(l.name), `${week} ${color}: ${l.name}`).toBe(true);
+      }
+  });
+
   it('has distinct practice lines', () => {
     for (const week of ['2026-W40', '2026-W41', '2026-W42', '2026-W43', '2026-W44']) {
       const { lines } = weekRepertoire(graph, names, 'w', week);

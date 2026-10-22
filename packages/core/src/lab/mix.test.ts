@@ -16,6 +16,7 @@ function node(
     parent,
     children: [],
     own: true,
+    name: key,
     eco: '',
     ucis: [],
     lines,

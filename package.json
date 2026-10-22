@@ -14,7 +14,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "build": "pnpm -r build",
-    "build:openings": "tsx scripts/build-openings.ts",
+    "build:openings": "tsx scripts/build-openings.ts && tsx scripts/build-opening-list.ts",
     "test:e2e": "pnpm --filter @processchess/web test:e2e"
   },
   "devDependencies": {

@@ -5,6 +5,7 @@ dist
 .svelte-kit
 data/openings/*.tsv
 packages/core/src/openings/openings.json
+docs/openings.md
 packages/db/drizzle/meta
 packages/db/src/migrations.generated.ts
 test-results

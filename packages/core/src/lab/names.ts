@@ -4,18 +4,15 @@ import { LABEL_OWN_FAMILY, OpeningsNotLoadedError, labelOfUci } from '../opening
 import type { OpeningLabel } from '../openings/types';
 import { type OpeningSide, openingSide } from './opening-side';
 
-/** "Family: Variation, Subvariation" → ["Family", "Variation", "Subvariation"]. */
+/**
+ * "Family: Variation, Subvariation" → ["Family", "Variation", "Subvariation"]. A name without a
+ * colon ("French Defense, Classical, 4. Bg5") is cut at its commas, as `splitOpeningName` does.
+ */
 export function nameSegments(name: string): string[] {
   const colon = name.indexOf(':');
-  if (colon === -1) return [name.trim()];
-  return [
-    name.slice(0, colon).trim(),
-    ...name
-      .slice(colon + 1)
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean),
-  ];
+  const parts =
+    colon === -1 ? name.split(',') : [name.slice(0, colon), ...name.slice(colon + 1).split(',')];
+  return parts.map((s) => s.trim()).filter(Boolean);
 }
 
 /** Inverse of `nameSegments`; also the key of a name-tree node. */
@@ -40,6 +37,11 @@ export interface NameNode {
   children: string[];
   /** True when the dataset names a position with exactly this name. */
   own: boolean;
+  /**
+   * Dataset name of that position, e.g. "London System, with Bd3" (the key may differ: "London
+   * System: with Bd3"); null for a group without a position of its own.
+   */
+  name: string | null;
   eco: string;
   /**
    * Moves to the position of this name (the shortest when several positions share it). For a
@@ -84,6 +86,11 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
   const names = openingIndex();
   if (!names) throw new OpeningsNotLoadedError();
   const nodes = new Map<string, NameNode>();
+  // a name without a colon that is a family of other names stays whole
+  // ("Vienna Gambit, with Max Lange Defense" and "…: Steinitz Gambit")
+  const families = new Set<string>();
+  for (const [, name] of names.values()) if (name.includes(':')) families.add(name.split(':')[0]!);
+  const segmentsOf = (name: string) => (families.has(name) ? [name] : nameSegments(name));
 
   const ensure = (segments: string[]): NameNode => {
     const key = joinSegments(segments);
@@ -98,6 +105,7 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
         kind: parent ? 'variation' : 'opening',
         children: [],
         own: false,
+        name: null,
         eco: '',
         ucis: [],
         lines: 0,
@@ -114,12 +122,13 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
   for (const [epd, [eco, name]] of names) {
     const graphNode = graph.nodeOf(epd);
     if (graphNode === undefined) continue;
-    const n = ensure(nameSegments(name));
+    const n = ensure(segmentsOf(name));
     const ucis = graph.pathTo(graphNode);
     // a one-move position is a style label, not an opening (ADR 012): prefer any deeper one
     const rank = (u: readonly string[]) => (u.length < 2 ? 1000 : 0) + u.length;
     if (!n.own || rank(ucis) < rank(n.ucis)) {
       n.own = true;
+      n.name = name;
       n.eco = eco;
       n.ucis = ucis;
       n.lines = graph.linesThrough(graphNode);
@@ -129,16 +138,18 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
 
   // a level named only at one move, with variations below, is a group of them (a label)
   for (const n of nodes.values())
-    if (n.own && n.ucis.length < 2 && n.children.length) n.own = false;
+    if (n.own && n.ucis.length < 2 && n.children.length) {
+      n.own = false;
+      n.name = null;
+    }
 
   // groups without a position of their own take their most used child; children sorted
+  const byPopularity = (a: NameNode, b: NameNode) =>
+    b.lines - a.lines || a.ucis.length - b.ucis.length || a.label.localeCompare(b.label);
   const finish = (n: NameNode): void => {
     const kids = n.children.map((k) => nodes.get(k)!);
     kids.forEach(finish);
-    kids.sort(
-      (a, b) =>
-        b.lines - a.lines || a.ucis.length - b.ucis.length || a.label.localeCompare(b.label),
-    );
+    kids.sort(byPopularity);
     n.children = kids.map((k) => k.key);
     if (!n.own && kids[0]) {
       n.eco = kids[0].eco;
@@ -151,32 +162,72 @@ export function buildNameTree(graph: OpeningGraph): NameTree {
   const datasetRoots = [...nodes.values()].filter((n) => n.parent === null);
   datasetRoots.forEach(finish);
 
-  // The style names are not openings: their variations become openings of their own.
+  // The style names are not openings: their variations become openings of their own, unless
+  // the dataset already has an opening with that name ("Queen's Pawn Game: London System" and
+  // "London System"): then that opening absorbs it, keeping its own main line.
   const styleNames = new Set(Object.values(LABEL_OWN_FAMILY).filter((f) => f !== null));
   const shift = (n: NameNode, depth: number): void => {
     n.depth = depth;
     for (const k of n.children) shift(nodes.get(k)!, depth + 1);
+  };
+  /** Old key → key of the level that now holds that name (see `nodeForName`). */
+  const aliases = new Map<string, string>();
+  const childKey = (parent: NameNode, label: string) =>
+    `${parent.key}${parent.parent === null ? ':' : ','} ${label}`;
+  const rekey = (n: NameNode, parent: NameNode): void => {
+    const kids = n.children.map((k) => nodes.get(k)!);
+    nodes.delete(n.key);
+    aliases.set(n.key, childKey(parent, n.label));
+    n.key = childKey(parent, n.label);
+    n.parent = parent.key;
+    n.children = [];
+    nodes.set(n.key, n);
+    for (const kid of kids) {
+      rekey(kid, n);
+      n.children.push(kid.key);
+    }
+  };
+  const absorb = (from: NameNode, into: NameNode): void => {
+    nodes.delete(from.key);
+    aliases.set(from.key, into.key);
+    for (const kid of from.children.map((k) => nodes.get(k)!)) {
+      const same = nodes.get(childKey(into, kid.label));
+      if (same) {
+        absorb(kid, same);
+        continue;
+      }
+      rekey(kid, into);
+      shift(kid, into.depth + 1);
+      into.children.push(kid.key);
+    }
+    into.children.sort((a, b) => byPopularity(nodes.get(a)!, nodes.get(b)!));
   };
   for (const root of datasetRoots) {
     if (!styleNames.has(root.key)) continue;
     nodes.delete(root.key);
     for (const k of root.children) {
       const child = nodes.get(k)!;
+      const opening = nodes.get(child.label);
+      if (opening && opening.parent === null && opening !== child) {
+        absorb(child, opening);
+        continue;
+      }
       child.parent = null;
       child.kind = 'opening';
       shift(child, 0);
     }
   }
-  const byLines = (a: NameNode, b: NameNode) =>
-    b.lines - a.lines || a.ucis.length - b.ucis.length || a.label.localeCompare(b.label);
-  const roots = [...nodes.values()].filter((n) => n.parent === null).sort(byLines);
+  const roots = [...nodes.values()].filter((n) => n.parent === null).sort(byPopularity);
   const lookup = { get: (key: string) => nodes.get(key) };
   for (const r of roots) r.owner = openingSide(lookup, r);
 
   return {
     roots: roots.map((r) => r.key),
     get: (key) => nodes.get(key),
-    nodeForName: (name) => nodes.get(joinSegments(nameSegments(name))),
+    nodeForName: (name) => {
+      const key = joinSegments(segmentsOf(name));
+      return nodes.get(aliases.get(key) ?? key);
+    },
     all: () => nodes.values(),
   };
 }

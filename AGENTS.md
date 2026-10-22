@@ -55,7 +55,7 @@ packages/core/                @processchess/core — pure logic, no UI, no I/O
   src/pgn/                    parsePgn, importPgn/treeFromPgn, exportPgn
   src/drill/                  line drill and review drill engine
   src/lab/                    opening lab: name tree (Opening › Variation), openingSide,
-                              linesFrom, practice lines, recall sessions
+                              linesFrom, practice lines, recall sessions, formatOpeningList
   src/srs/                    FSRS cards (ts-fsrs), due moves and counts, daily stats helpers
   src/week/                   week ids, planWeek, weekRepertoire (weekly repertoires)
   src/position.ts             legal moves, SAN↔UCI for the UI
@@ -68,8 +68,10 @@ packages/db/                  @processchess/db — Drizzle schema, migrations, S
   src/sqlite-storage.ts       Storage implementation shared by all adapters
   src/adapters/               memory (node:sqlite), opfs (+ worker), tauri (TODO)
 data/openings/                upstream TSV files (CC0)
-scripts/                      build-openings.ts, build-migrations.ts
+scripts/                      build-openings.ts, build-opening-list.ts, build-migrations.ts
 docs/adr/                     architecture decision records
+docs/openings.md              generated: every opening and variation of the name tree
+docs/superpowers/             specs, plans and briefs (superpowers workflow, see CLAUDE.md)
 ```
 
 ## Commands
@@ -82,7 +84,7 @@ pnpm typecheck       # tsc / svelte-check in every package
 pnpm test            # vitest in every package
 pnpm build           # builds apps/web (static site in apps/web/build)
 pnpm test:e2e        # Playwright against apps/web/build (run pnpm build first)
-pnpm build:openings  # regenerate openings.json + opening-graph.json from data/openings/*.tsv
+pnpm build:openings  # regenerate openings.json, opening-graph.json, docs/openings.md
 pnpm --filter @processchess/db db:generate --name <change>  # migration + migrations.generated.ts
 pnpm --filter @processchess/web dev
 ```
@@ -122,5 +124,5 @@ push; CI runs the same. Locally Playwright uses the Chromium in `PLAYWRIGHT_BROW
 5. `packages/core` stays pure: no DOM, no storage, no network.
 6. The UI calls only `@processchess/core` and `@processchess/db` (no chess.js in apps/web);
    logic goes in core with unit tests.
-7. Do not hand-edit generated files (`openings.json`, `opening-graph.json`, `packages/db/drizzle/*`,
-   `migrations.generated.ts`); regenerate them.
+7. Do not hand-edit generated files (`openings.json`, `opening-graph.json`, `docs/openings.md`,
+   `packages/db/drizzle/*`, `migrations.generated.ts`); regenerate them.

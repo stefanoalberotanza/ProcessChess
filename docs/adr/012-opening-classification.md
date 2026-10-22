@@ -3,7 +3,8 @@
 - Status: accepted
 - Amended 2026-10-15: the name tree used by the UI has no families: openings are the roots
   (King's / Queen's Pawn Game are not openings; their variations are). See
-  docs/superpowers/specs/2026-10-15-lines-view-design.md. Classification labels are unchanged.
+  docs/superpowers/specs/2026-10-15-lines-view-design.md and "Name tree (2026-10-15)" below.
+  Classification labels are unchanged.
 - Date: 2026-10-09
 
 ## Context
@@ -49,12 +50,10 @@ name, so English Opening and Zukertort Opening stay subfamilies of the flank fam
 `reclassifyOpenings()` now revisits every standard-start collection (unchanged rows are not
 written) so that nodes stored under older rules follow the current ones.
 
-The opening lab's by-name tree (`buildNameTree`, ADR 011) follows the same model: its three
-roots are the families (`style:king|queen|flank`, named by the UI), the style's own dataset name
-is the family node itself (`nodeForName("King's Pawn Game")`), and each other dataset family
-hangs below its family as a subfamily or, with fewer than two variations, a variation. Every
-node has a `kind`; a family is not an opening, so it has no practice button. The by-style radio
-filter is gone, since the roots are the styles.
+The opening lab's by-name tree (`buildNameTree`, ADR 011) followed the same model until
+2026-10-15, with the three families as roots. It no longer does: see "Name tree (2026-10-15)"
+below. The family / subfamily / variation levels above now describe only the classification
+stored on repertoire nodes and used by the opening bar and the statistics.
 
 Opening traps are not catalogued in the dataset, which is why some branches (1.e4 e5 2.f3) stop
 early. That is a dataset gap, not a labelling rule; a layer for traps and custom lines can be
@@ -100,3 +99,38 @@ with the single variations on demand. A group leads to the `commonPrefix` of its
 where its subfamily turns into variations; when they diverge right at the board position, the
 group's variations open instead. A group's "main line" is its most played variation, practised
 as that variation (subfamilies stay containers, ADR 011).
+
+**Name tree (2026-10-15).** `buildNameTree` (core, `lab/names.ts`) is the hierarchy shown by the
+Lines view, the repertoire panel and Training. It has two kinds of level, `opening` and
+`variation`, and no families:
+
+- **Roots are openings**, most played first: every dataset family (text before the colon) is an
+  opening, including one with fewer than two variations (Bird Opening, Bongcloud Attack).
+- **The style names are not openings.** "King's Pawn Game" and "Queen's Pawn Game" are not in the
+  tree; each of their variations is an opening of its own (key: the full dataset name, label: the
+  variation part, e.g. "King's Head Opening").
+- **No duplicate openings (2026-10-16).** When a style variation has the name of a dataset
+  opening ("Queen's Pawn Game: London System" and "London System", also Torre Attack, Colle
+  System, Modern Defense, Gunderam Defense, Dresden Opening), it is not an opening: the dataset
+  opening absorbs it and keeps its own main line, ECO and position. The style variation's own
+  variations move below that opening ("London System: Pterodactyl Variation"), merging with a
+  variation of the same name, and `nodeForName` resolves the old names to their new level. Every
+  opening label is unique.
+- **Splitting a name** (`nameSegments`): "Family: Variation, Subvariation" gives one level per
+  segment. A name without a colon is cut at its commas, as `splitOpeningName` does, so
+  "French Defense, Classical, 4. Bg5" hangs below French Defense (11 dataset names have no
+  colon). Exception: a name that is itself a dataset family stays whole ("Vienna Gambit, with Max
+  Lange Defense", whose variations are "Vienna Gambit, with Max Lange Defense: …").
+- **Key and name.** The key of a level is its segments joined back (`joinSegments`), so it can
+  differ from the dataset name ("London System: with Bd3" for "London System, with Bd3").
+  `NameNode.name` holds the dataset name of the level's own position; `nodeForName` accepts
+  either form.
+- **Groups.** A level that the dataset never names exactly, or names only at one move with
+  variations below (English Opening), has no position of its own: `own` is false, `name` is null
+  and it borrows the moves of its most played child. Groups are containers: they are never
+  practised and never picked for a week repertoire.
+
+With the dataset at the commit in `data/openings/README.md` the tree has 180 openings and 3,274
+levels, 120 of them groups. When the absorbing opening is itself a group (Torre Attack, Colle
+System, Dresden Opening), its main line is still that of its most played variation. One dataset
+quirk remains visible: "Queen's Pawn, Mengarini Attack" makes "Queen's Pawn" an opening.

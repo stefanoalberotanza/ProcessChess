@@ -1,0 +1,3 @@
+# LF everywhere, Windows checkouts included (whatever core.autocrlf says): the dataset parser and
+# the tests on generated files compare exact text.
+* text=auto eol=lf
