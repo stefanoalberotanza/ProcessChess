@@ -17,6 +17,8 @@ export interface RecallState {
   readonly fens: readonly string[];
   /** Moves already played (index of the next move to play). */
   readonly ply: number;
+  /** Ply the recall began at (0 unless it started mid-line). */
+  readonly startPly: number;
   readonly phase: 'play' | 'retry' | 'done';
   readonly reveal: string | null;
   readonly hintLevel: 0 | 1 | 2 | 3;
@@ -78,7 +80,13 @@ function skipAuto(state: RecallState, ply: number): number {
 
 export function startRecall(
   ucis: readonly string[],
-  opts: { startFen?: string; clock?: () => number; autoSide?: 'w' | 'b' | null } = {},
+  opts: {
+    startFen?: string;
+    clock?: () => number;
+    autoSide?: 'w' | 'b' | null;
+    /** Begin at this ply of the line; the earlier plies count as already played. */
+    fromPly?: number;
+  } = {},
 ): RecallState {
   const fens = [opts.startFen ?? INITIAL_FEN];
   const sans: string[] = [];
@@ -94,6 +102,7 @@ export function startRecall(
     sans,
     fens,
     ply: 0,
+    startPly: opts.fromPly ?? 0,
     phase: 'play',
     reveal: null,
     hintLevel: 0,
@@ -105,7 +114,7 @@ export function startRecall(
     clock,
     autoSide: opts.autoSide ?? null,
   };
-  const ply = skipAuto(state, 0);
+  const ply = skipAuto(state, opts.fromPly ?? 0);
   return { ...state, ply, phase: ply < ucis.length ? 'play' : 'done' };
 }
 
@@ -119,6 +128,7 @@ export function restartRecall(state: RecallState): RecallState {
     startFen: state.fens[0]!,
     clock: state.clock,
     autoSide: state.autoSide,
+    fromPly: state.startPly,
   });
 }
 

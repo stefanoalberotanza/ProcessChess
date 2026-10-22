@@ -16,7 +16,7 @@ function counter() {
 }
 
 async function ready(page: Page) {
-  await page.goto('/');
+  await page.goto('/?tab=explore');
   // storage ready, this week's repertoires created
   await expect(
     page
@@ -122,10 +122,11 @@ test('the home page always shows the Import PGN button', async ({ page }) => {
   await expect(dialog).toBeHidden();
 });
 
-test('the openings tab has no Today view', async ({ page }) => {
+test('Today is a tab of its own: the openings tab has no daily mix', async ({ page }) => {
   await ready(page);
-  await explore(page);
-  await expect(page.getByRole('tab', { name: 'Today' })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Today' })).toHaveCount(1);
+  const lines = await explore(page);
+  await expect(lines.getByText(/daily mix/i)).toHaveCount(0);
   await expect(page.getByRole('searchbox')).toHaveAttribute(
     'placeholder',
     'Search an opening or paste a FEN',
@@ -617,7 +618,7 @@ test('practising a repertoire variation in the lab reviews its FSRS cards', asyn
 
   // back in the openings, the variation's progress is its FSRS state (ADR 013): moves answered
   // this fast are rated Easy, so FSRS schedules them as already known (next review in days)
-  await page.goto('/');
+  await page.goto('/?tab=explore');
   await enterOpening(page, 'Sicilian Defense');
   await expect(
     (await lineRow(page, 'Variations', name)).getByTestId('mastery'),

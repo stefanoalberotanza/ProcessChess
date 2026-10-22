@@ -35,14 +35,18 @@ apps/web/                     SvelteKit app (@processchess/web)
   src/lib/app.svelte.ts       bootstrap: OPFS storage, migrations, openings dataset
   src/lib/drill.svelte.ts     DrillController: drill UI state + attempt logging
   src/lib/lab.svelte.ts       LabController: opening lab sessions + lab history
+  src/lib/today.svelte.ts     TodayController: the daily puzzle session (hearts, combo, streak)
+  src/lib/today-day.ts        one session a day, marked in localStorage (pc.today)
+  src/lib/practice-log.ts     shared FSRS feed of practised moves
+  src/lib/effects.svelte.ts   sound and animation switch (pc.effects); sound.ts: synthesised cues
   src/lib/week.ts             ensureWeek: weekly repertoires (White/Black) created at startup
   src/lib/i18n/               en.ts (keys), it.ts, t()
-  src/lib/components/         RepertoireList, ExplorePanel, LinesView, LabPanel, Mastery, GraphPanel,
+  src/lib/components/         TodayPanel, Bishop, EffectsSwitch, RepertoireList, ExplorePanel, LinesView, LabPanel, Mastery, GraphPanel,
                               MiniBoard,
                               FenExport, SideMark,
                               RepertoirePanel, DrillPanel, OpeningBar, MoveTree, MoveHistory,
                               ImportForm
-  src/routes/+page.svelte     the workspace (?c=<collection>&tab=explore|graph|repertoire|train)
+  src/routes/+page.svelte     the workspace (?c=<collection>&tab=today|explore|graph|repertoire|train)
   src/routes/stats/           daily statistics
   src/service-worker.ts       offline precache
   e2e/                        Playwright tests; scripts/serve-build.js serves build/
@@ -56,6 +60,7 @@ packages/core/                @processchess/core — pure logic, no UI, no I/O
   src/drill/                  line drill and review drill engine
   src/lab/                    opening lab: name tree (Opening › Variation), openingSide,
                               linesFrom, practice lines, recall sessions, formatOpeningList
+  src/today/                  puzzle, select, run (hearts, combo), streak of the Today session
   src/srs/                    FSRS cards (ts-fsrs), due moves and counts, daily stats helpers
   src/week/                   week ids, planWeek, weekRepertoire (weekly repertoires)
   src/position.ts             legal moves, SAN↔UCI for the UI
@@ -65,7 +70,7 @@ packages/db/                  @processchess/db — Drizzle schema, migrations, S
   drizzle/                    generated migrations (drizzle-kit)
   src/migrations.generated.ts generated bundle of drizzle/ (do not edit)
   src/migrator.ts             runMigrations(exec) with __migrations
-  src/sqlite-storage.ts       Storage implementation shared by all adapters
+  src/sqlite-storage.ts       Storage implementation shared by all adapters (incl. practiceTimes)
   src/adapters/               memory (node:sqlite), opfs (+ worker), tauri (TODO)
 data/openings/                upstream TSV files (CC0)
 scripts/                      build-openings.ts, build-opening-list.ts, build-migrations.ts

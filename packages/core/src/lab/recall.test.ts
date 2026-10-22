@@ -138,6 +138,52 @@ describe('recall session', () => {
     expect(s.phase).toBe('done');
   });
 
+  describe('fromPly', () => {
+    // B90 Sicilian Defense: Najdorf Variation (data/openings/b.tsv)
+    const NAJDORF = [
+      'e2e4',
+      'c7c5',
+      'g1f3',
+      'd7d6',
+      'd2d4',
+      'c5d4',
+      'f3d4',
+      'g8f6',
+      'b1c3',
+      'a7a6',
+    ];
+
+    it('starts at fromPly with earlier plies already played', () => {
+      const state = startRecall(NAJDORF, { autoSide: 'b', fromPly: 8 });
+      expect(state.ply).toBe(8);
+      expect(state.startPly).toBe(8);
+      expect(state.phase).toBe('play');
+      expect(state.fens.length).toBe(11);
+    });
+
+    it('logs full-line plies', () => {
+      const state = startRecall(NAJDORF, { autoSide: 'b', fromPly: 8 });
+      const result = submitRecall(state, 'b1c3');
+      expect(result.attempt!.ply).toBe(9);
+      expect(result.attempt!.epd).toBe(toEpd(state.fens[8]!));
+    });
+
+    it('skips ahead when fromPly is an auto side ply', () => {
+      const state = startRecall(NAJDORF, { autoSide: 'b', fromPly: 7 });
+      expect(state.ply).toBe(8);
+    });
+
+    it('keeps fromPly on restart', () => {
+      const wrong = submitRecall(startRecall(NAJDORF, { autoSide: 'b', fromPly: 8 }), 'a2a3');
+      const right = submitRecall(wrong.state, 'b1c3');
+      expect(restartRecall(right.state).ply).toBe(8);
+    });
+
+    it('is done when fromPly is at or beyond the end', () => {
+      expect(startRecall(NAJDORF, { fromPly: 10 }).phase).toBe('done');
+    });
+  });
+
   it('rejects an illegal line and moves after the end', () => {
     expect(() => startRecall(['e2e5'])).toThrow(IllegalMoveError);
     const done = playAll(startRecall(['e2e4']), ['e2e4']).state;

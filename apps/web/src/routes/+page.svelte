@@ -29,7 +29,7 @@
     toEpd,
   } from '@processchess/core';
   import { type Collection, type MoveHistory as History, newId } from '@processchess/db';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import Board from '$lib/Board.svelte';
   import { app, storage } from '$lib/app.svelte';
   import DrillPanel from '$lib/components/DrillPanel.svelte';
@@ -43,12 +43,15 @@
   import OpeningPath from '$lib/components/OpeningPath.svelte';
   import RepertoireList, { type RepertoireRow } from '$lib/components/RepertoireList.svelte';
   import RepertoirePanel from '$lib/components/RepertoirePanel.svelte';
+  import TodayPanel from '$lib/components/TodayPanel.svelte';
+  import { TodayController } from '$lib/today.svelte';
+  import { effects } from '$lib/effects.svelte';
   import { DrillController } from '$lib/drill.svelte';
   import { type LabItem, LabController, edgeKey } from '$lib/lab.svelte';
   import { t } from '$lib/i18n/index.svelte';
 
-  type Tab = 'explore' | 'graph' | 'repertoire' | 'train';
-  const TABS: Tab[] = ['explore', 'graph', 'repertoire', 'train'];
+  type Tab = 'today' | 'explore' | 'graph' | 'repertoire' | 'train';
+  const TABS: Tab[] = ['today', 'explore', 'graph', 'repertoire', 'train'];
 
   // ---- data ---------------------------------------------------------------------------
   let graph = $state.raw<OpeningGraph | null>(null);
@@ -61,7 +64,7 @@
   // ---- shared board position: moves from the start position ----------------------------
   let ucis = $state<string[]>([]);
   let redo = $state<string[]>([]);
-  let tab = $state<Tab>('explore');
+  let tab = $state<Tab>('today');
   let sanInput = $state('');
   let sanError = $state<string | null>(null);
   let message = $state<string | null>(null);
@@ -70,6 +73,7 @@
   let importOpen = $state(false);
   const ctl = new DrillController();
   const lab = new LabController();
+  const today = new TodayController();
 
   const selected = $derived<Collection | null>(
     rows.find((r) => r.collection.id === selectedId)?.collection ?? null,
@@ -81,8 +85,9 @@
   const inRepertoire = $derived(!!repAt && repAt.depth === ucis.length);
   const training = $derived(tab === 'train' && ctl.active);
   const labbing = $derived(tab === 'explore' && lab.active);
-  /** The session that owns the board, if any: line drill/review or opening lab. */
-  const session = $derived(training ? ctl : labbing ? lab : null);
+  const todaying = $derived(tab === 'today' && today.active);
+  /** The session that owns the board, if any: line drill/review, opening lab or Today. */
+  const session = $derived(training ? ctl : labbing ? lab : todaying ? today : null);
   const offRepertoireSan = $derived(
     tree && repAt && !inRepertoire ? (line.san[repAt.depth] ?? null) : null,
   );
@@ -105,6 +110,8 @@
   if (tabParam && TABS.includes(tabParam)) tab = tabParam;
 
   let started = false;
+  /** True once the startup tried to load the graph (Today needs it for its fill-ins). */
+  let graphTried = $state(false);
   $effect(() => {
     if (!app.ready || started) return;
     started = true;
@@ -118,6 +125,7 @@
         console.error('Opening graph not loaded:', e);
       }
       void lab.refresh();
+      graphTried = true;
       await refresh();
       const c = initialParams.get('c');
       if (c && rows.some((r) => r.collection.id === c)) {
@@ -132,7 +140,7 @@
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- built once, not reactive state
     const params = new URLSearchParams();
     if (selectedId) params.set('c', selectedId);
-    if (tab !== 'explore') params.set('tab', tab);
+    if (tab !== 'today') params.set('tab', tab);
     const qs = params.toString();
     replaceUrl(qs ? `?${qs}` : window.location.pathname);
   });
@@ -405,6 +413,15 @@
     // leaving the openings tab ends the lab session
     if (tab !== 'explore' && lab.active) lab.stop();
   });
+  $effect(() => {
+    // leaving the Today tab ends its session; coming back reloads it
+    if (tab !== 'today') {
+      if (today.active) today.stop();
+    } else if (graphTried) {
+      const g = graph;
+      untrack(() => void today.prepare(g));
+    }
+  });
   // a completed pass changes the clean counts in the list
   let passesSeen = 0;
   $effect(() => {
@@ -458,7 +475,15 @@
     return [from, to];
   });
   const barMoves = $derived(
-    labbing ? lab.sansPlayed : standardStart ? (training ? ctl.movesSan : line.san) : null,
+    todaying
+      ? today.sansPlayed
+      : labbing
+        ? lab.sansPlayed
+        : standardStart
+          ? training
+            ? ctl.movesSan
+            : line.san
+          : null,
   );
   const outOfRepertoire = $derived(
     training
@@ -517,12 +542,20 @@
     <Board
       maxSize={tab === 'graph' ? 380 : 520}
       fen={boardFen}
-      orientation={(labbing ? lab.item?.side === 'b' : selected?.userColor === 'b')
+      orientation={(
+        todaying
+          ? today.side === 'b'
+          : labbing
+            ? lab.item?.side === 'b'
+            : selected?.userColor === 'b'
+      )
         ? 'black'
         : 'white'}
       interactive={session ? session.awaitingMove : true}
       {lastMove}
       shapes={session ? session.shapes : []}
+      flash={todaying && effects.on ? today.flash : undefined}
+      shake={todaying && effects.on ? today.shake : undefined}
       onmove={onboardmove}
     />
     <OpeningPath movesSan={barMoves} />
@@ -611,7 +644,9 @@
       {/each}
     </div>
     <div class="tabpanel" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-      {#if tab === 'explore' && lab.active}
+      {#if tab === 'today'}
+        <TodayPanel {today} />
+      {:else if tab === 'explore' && lab.active}
         <LabPanel {lab} onstop={() => lab.stop()} />
       {:else if tab === 'explore'}
         <ExplorePanel

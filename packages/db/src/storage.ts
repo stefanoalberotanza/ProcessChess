@@ -177,6 +177,12 @@ export interface Storage {
    * attempts. All collections unless `collectionId`.
    */
   dailyStats(range: { from: string; to: string; collectionId?: string }): Promise<DayStat[]>;
+  /**
+   * Start timestamps (Unix ms) of the 15-minute slots holding at least one `attempt` or
+   * `lab_attempt` with `ts >= sinceMs`, distinct and ascending. Slots are short enough to map
+   * to a local day in every time zone.
+   */
+  practiceTimes(sinceMs: number): Promise<number[]>;
   /** Recomputes cards and daily stats from the attempt log. */
   rebuildDerived(): Promise<void>;
 

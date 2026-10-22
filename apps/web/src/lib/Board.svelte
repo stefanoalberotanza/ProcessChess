@@ -37,6 +37,10 @@
     onmove?: (uci: string) => boolean | void;
     /** Maximum width in px (default 520). */
     maxSize?: number;
+    /** A coloured overlay on a square for a moment; shown again whenever `n` changes. */
+    flash?: { square: string; kind: 'right' | 'wrong'; n: number };
+    /** The board shakes for a moment whenever this value changes. */
+    shake?: number;
   }
 
   let {
@@ -47,6 +51,8 @@
     shapes = [],
     onmove,
     maxSize = 520,
+    flash,
+    shake,
   }: Props = $props();
 
   let el: HTMLDivElement;
@@ -55,6 +61,19 @@
   const PROMOTION_PIECES = ['q', 'r', 'b', 'n'] as const;
 
   const position = $derived(describePosition(fen));
+
+  // the shake alternates between two identical animations so that each change restarts it
+  const shakeClass = $derived(shake ? (shake % 2 === 0 ? 'shake-a' : 'shake-b') : '');
+
+  const flashStyle = $derived.by(() => {
+    if (!flash) return null;
+    const file = flash.square.charCodeAt(0) - 97;
+    const rank = Number(flash.square[1]) - 1;
+    if (!(file >= 0 && file < 8 && rank >= 0 && rank < 8)) return null;
+    const col = orientation === 'white' ? file : 7 - file;
+    const row = orientation === 'white' ? 7 - rank : rank;
+    return `left: ${col * 12.5}%; top: ${row * 12.5}%;`;
+  });
 
   function sync() {
     if (!cg) return;
@@ -115,12 +134,17 @@
 </script>
 
 <div
-  class="board"
+  class="board {shakeClass}"
   role="group"
   aria-label={t('board.label')}
   style:width={`min(92vw, ${maxSize}px)`}
 >
   <div bind:this={el} class="cg"></div>
+  {#if flash && flashStyle}
+    {#key flash.n}
+      <div class="flash {flash.kind}" style={flashStyle} aria-hidden="true"></div>
+    {/key}
+  {/if}
   {#if promotion}
     <div class="promotion" role="dialog" aria-label={t('board.promotion')}>
       {#each PROMOTION_PIECES as p (p)}
@@ -173,6 +197,78 @@
   }
   .cg :global(cg-board square.selected) {
     background-color: rgba(230, 201, 122, 0.55);
+  }
+  .flash {
+    position: absolute;
+    width: 12.5%;
+    height: 12.5%;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0;
+    animation: flash 400ms ease-out;
+  }
+  .flash.right {
+    background: rgba(76, 175, 80, 0.7);
+  }
+  .flash.wrong {
+    background: rgba(211, 47, 47, 0.7);
+  }
+  @keyframes flash {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  .shake-a {
+    animation: shake-a 300ms linear;
+  }
+  .shake-b {
+    animation: shake-b 300ms linear;
+  }
+  @keyframes shake-a {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-8px);
+    }
+    40% {
+      transform: translateX(7px);
+    }
+    60% {
+      transform: translateX(-5px);
+    }
+    80% {
+      transform: translateX(3px);
+    }
+  }
+  @keyframes shake-b {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-8px);
+    }
+    40% {
+      transform: translateX(7px);
+    }
+    60% {
+      transform: translateX(-5px);
+    }
+    80% {
+      transform: translateX(3px);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .flash,
+    .shake-a,
+    .shake-b {
+      animation: none;
+    }
   }
   .promotion {
     position: absolute;

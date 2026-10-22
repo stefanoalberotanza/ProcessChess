@@ -4,6 +4,11 @@
 - Amended 2026-10-14: the Today card is removed (week repertoires, see
   docs/superpowers/specs/2026-10-14-week-repertoire-design.md); repertoireSession and dailyMix stay in
   core unused.
+- Amended 2026-10-16: Today returns as a puzzle session (docs/superpowers/specs/2026-10-16-today-puzzles-design.md),
+  built on repertoireSession, this week's week repertoires and dailyMix fill-ins. One session per
+  day, marked per viewer in localStorage (`pc.today`). Puzzles log `lab_attempt` and feed FSRS like
+  the lab and never write a `lab_run`. The streak is computed from `attempt` and `lab_attempt`
+  timestamps via `Storage.practiceTimes`.
 - Date: 2026-10-13
 
 ## Context

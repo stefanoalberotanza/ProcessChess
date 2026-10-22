@@ -38,10 +38,12 @@
 ### Task 1: `startRecall` can start mid-line (`fromPly`)
 
 **Files:**
+
 - Modify: `packages/core/src/lab/recall.ts`
 - Test: `packages/core/src/lab/recall.test.ts`
 
 **Interfaces:**
+
 - Produces: `startRecall(ucis, opts: { startFen?; clock?; autoSide?; fromPly?: number })`; `RecallState.startPly: number` (the ply the recall began at; 0 by default). `restartRecall` keeps it. Plies in `RecallAttempt` and `fens` stay those of the full line.
 
 - [ ] **Step 1: Write the failing tests** in `recall.test.ts` (use the Najdorf line `e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6`; confirm its name and moves in `data/openings/*.tsv` and copy them):
@@ -58,16 +60,24 @@
 ### Task 2: Critical ply and puzzle
 
 **Files:**
+
 - Create: `packages/core/src/today/puzzle.ts`, `packages/core/src/today/puzzle.test.ts`
 - Modify: `packages/core/src/index.ts` (export the new module; `today/index.ts` re-exports every file added in Tasks 2–5)
 
 **Interfaces:**
+
 - Consumes: `edgeKeyAfter(epdAfter, uci)` (`srs/line-state.ts`), `SrsCard` (`srs/schedule.ts`: `state`, `due: Date`), `toEpd`, `playMove`.
 - Produces:
+
   ```ts
   export type PuzzleCards = ReadonlyMap<string, readonly Pick<SrsCard, 'state' | 'due'>[]>;
   /** 0-based index in `line` of the first move the user must decide. */
-  export function criticalPly(line: readonly string[], side: 'w' | 'b', cards: PuzzleCards, now: Date): number;
+  export function criticalPly(
+    line: readonly string[],
+    side: 'w' | 'b',
+    cards: PuzzleCards,
+    now: Date,
+  ): number;
   ```
 
 - [ ] **Step 1: Write the failing tests** (build `cards` in a helper that plays the line with `playMove` and keys each user move with `edgeKeyAfter(toEpd(fen), uci)`):
@@ -85,19 +95,31 @@
 ### Task 3: Candidates and selection
 
 **Files:**
+
 - Create: `packages/core/src/today/select.ts`, `packages/core/src/today/select.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SessionLine` (`srs/session.ts`), `Tree`, `CardMap`, `enumerateLines`, `seededRandom` (`lab/mix.ts`).
 - Produces:
+
   ```ts
   export type CandidateKind = 'due' | 'new' | 'fill';
-  export interface PuzzleCandidate { line: string[]; side: 'w' | 'b'; kind: CandidateKind }
+  export interface PuzzleCandidate {
+    line: string[];
+    side: 'w' | 'b';
+    kind: CandidateKind;
+  }
   export const SESSION_SIZE = 4;
   export const MIN_PUZZLES = 3;
   export function dueCandidates(session: readonly SessionLine[]): PuzzleCandidate[]; // due and learning → 'due'
-  export function newCandidates(repertoires: readonly { tree: Tree; cards: CardMap }[]): PuzzleCandidate[];
-  export function selectPuzzles(candidates: readonly PuzzleCandidate[], opts: { size?: number; random: () => number }): PuzzleCandidate[];
+  export function newCandidates(
+    repertoires: readonly { tree: Tree; cards: CardMap }[],
+  ): PuzzleCandidate[];
+  export function selectPuzzles(
+    candidates: readonly PuzzleCandidate[],
+    opts: { size?: number; random: () => number },
+  ): PuzzleCandidate[];
   ```
 
 - [ ] **Step 1: Write the failing tests:**
@@ -111,17 +133,24 @@
 ### Task 4: Hearts and combo reducer
 
 **Files:**
+
 - Create: `packages/core/src/today/run.ts`, `packages/core/src/today/run.test.ts`
 
 **Interfaces:**
+
 - Produces:
+
   ```ts
   export const HEARTS = 5;
   export interface TodayRun {
-    hearts: number; combo: number; bestCombo: number;
-    puzzle: number;            // 0-based index of the puzzle in play
+    hearts: number;
+    combo: number;
+    bestCombo: number;
+    puzzle: number; // 0-based index of the puzzle in play
     total: number;
-    clean: number; hinted: number; errored: number; // finished puzzles by outcome
+    clean: number;
+    hinted: number;
+    errored: number; // finished puzzles by outcome
     status: 'playing' | 'complete' | 'stopped';
   }
   export function startRun(total: number): TodayRun;
@@ -141,11 +170,14 @@
 ### Task 5: Streak
 
 **Files:**
+
 - Create: `packages/core/src/today/streak.ts`, `packages/core/src/today/streak.test.ts`
 
 **Interfaces:**
+
 - Consumes: `dayKey(date: Date)` (`srs/stats.ts`).
 - Produces:
+
   ```ts
   export const PRACTICE_SLOT_MS = 15 * 60 * 1000;
   /** Distinct local days (YYYY-MM-DD, ascending) of the start timestamps (Unix ms) of 15-minute practice slots. */
@@ -163,10 +195,12 @@
 ### Task 6: `Storage.practiceTimes`
 
 **Files:**
+
 - Modify: `packages/db/src/storage.ts` (interface), `packages/db/src/sqlite-storage.ts`
 - Test: `packages/db/src/practice-times.test.ts` (memory adapter, same set-up as `storage-lab.test.ts`)
 
 **Interfaces:**
+
 - Produces: `practiceTimes(sinceMs: number): Promise<number[]>` — the distinct start timestamps (Unix ms) of the 15-minute slots (`floor(ts / 900000) * 900000`) that hold at least one row of `attempt` or `lab_attempt` with `ts >= sinceMs`, ascending. (15-minute slots keep local-day conversion correct in every time zone.)
 
 - [ ] **Step 1: Write the failing test:** record one FSRS attempt and one lab attempt at known timestamps (use the clock injection the existing storage tests use) in two different slots plus a second row in the first slot, and one before `sinceMs` → exactly two slot starts, ascending.
@@ -178,15 +212,21 @@
 ### Task 7: Extract `feedRepertoire` from the lab
 
 **Files:**
+
 - Create: `apps/web/src/lib/practice-log.ts`
 - Modify: `apps/web/src/lib/lab.svelte.ts` (the private `feedRepertoire`, lines ~328–348)
 
 **Interfaces:**
+
 - Produces:
+
   ```ts
   /** Feeds FSRS for a practised move (ADR 013): one attempt per matching repertoire node. `sessions` maps collection id → FSRS session id and is filled as needed. */
   export async function feedRepertoire(
-    db: Storage, sessions: Record<string, string>, attempt: RecallAttempt, fenBefore: string,
+    db: Storage,
+    sessions: Record<string, string>,
+    attempt: RecallAttempt,
+    fenBefore: string,
   ): Promise<void>;
   ```
 
@@ -198,11 +238,13 @@
 ### Task 8: Effects — board flash and shake, sound, switch
 
 **Files:**
+
 - Modify: `apps/web/src/lib/Board.svelte`
 - Create: `apps/web/src/lib/sound.ts`, `apps/web/src/lib/effects.svelte.ts`, `apps/web/src/lib/components/EffectsSwitch.svelte`
 - Modify: `apps/web/src/lib/i18n/en.ts`, `it.ts`
 
 **Interfaces:**
+
 - Produces:
   - `Board.svelte` props `flash?: { square: string; kind: 'right' | 'wrong'; n: number }` (a coloured overlay on that square for ~400 ms, re-triggered when `n` changes) and `shake?: number` (the board shakes ~300 ms when the value changes). Both are plain CSS; no animation when `prefers-reduced-motion: reduce`.
   - `effects.svelte.ts`: `export const effects: { on: boolean; toggle(): void }` (reactive, loaded from `pc.effects`, default `true`, memory fallback).
@@ -217,9 +259,11 @@
 ### Task 9: Placeholder bishop
 
 **Files:**
+
 - Create: `apps/web/src/lib/components/Bishop.svelte`
 
 **Interfaces:**
+
 - Produces: `<Bishop expression="happy" | "proud" | "sorry" | "calm" size={n} />`, an inline SVG (white bishop, dark outline, face on the mitre), `role="img"` with an `aria-label` from `t('bishop.<expression>')`. Drawn after the mockup in `.superpowers/brainstorm/*/content/bishop-and-result-card.html` (happy = closed smiling eyes, proud = round eyes and a star, sorry = slanted brows and a sweat drop, calm = round eyes and a flat mouth). All art lives in this one file so it can be replaced.
 
 - [ ] **Step 1:** Create the component; add `bishop.happy`, `bishop.proud`, `bishop.sorry`, `bishop.calm` to `en.ts` and `it.ts`.
@@ -229,10 +273,12 @@
 ### Task 10: Today controller, panel and tab
 
 **Files:**
+
 - Create: `apps/web/src/lib/today.svelte.ts`, `apps/web/src/lib/today-day.ts`, `apps/web/src/lib/components/TodayPanel.svelte`
 - Modify: `apps/web/src/routes/+page.svelte`, `apps/web/src/lib/i18n/en.ts`, `it.ts`
 
 **Interfaces:**
+
 - Consumes: Tasks 1–9; `repertoireSession`, `dailyMix`, `buildNameTree`, `openingLine`/`practiceLine`, `openingSide`, `weekOf`, `weekId`, `lineSrsState`, `resolveOpening`, `startRecall`/`submitRecall`/`recallHint`, `storage()`.
 - Produces:
   - `today-day.ts`: `markTodayStarted(now = new Date()): void` and `startedToday(now = new Date()): boolean` over `pc.today` (memory fallback).
@@ -250,6 +296,7 @@
 ### Task 11: End-to-end tests, ADR note, docs
 
 **Files:**
+
 - Create: `apps/web/e2e/today.spec.ts`
 - Modify: `apps/web/e2e/drill.spec.ts`, `apps/web/e2e/review.spec.ts` (and any other e2e that assumes Openings is the default tab), `docs/adr/013-repertoire-backbone.md`, `AGENTS.md` (layout list)
 

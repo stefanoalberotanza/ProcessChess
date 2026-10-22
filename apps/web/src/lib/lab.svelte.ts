@@ -7,7 +7,6 @@ import {
   type RecallResult,
   type RecallState,
   parseUci,
-  playMove,
   recallHint,
   recallUserPlies,
   restartRecall,
@@ -20,6 +19,7 @@ import { type LabEdgeStats, type LabRun, type LabRunSummary, newId } from '@proc
 import type { BoardShape } from '$lib/Board.svelte';
 import { storage } from '$lib/app.svelte';
 import { t } from '$lib/i18n/index.svelte';
+import { feedRepertoire } from '$lib/practice-log';
 
 /** An opening to practise: the line (UCI from the initial position) and its name. */
 export interface LabItem {
@@ -320,31 +320,10 @@ export class LabController {
     this.recall = r.state;
   }
 
-  /**
-   * The repertoire is the centre and FSRS the only clock (ADR 013): a lab move that is one of the
-   * user's repertoire moves (same position and move, in a non-archived collection of the colour
-   * that played it) updates that move's card, as a drill attempt would.
-   */
+  /** Feeds the repertoire's FSRS cards with a lab move (ADR 013), see `feedRepertoire`. */
   private feedRepertoire(attempt: RecallAttempt, fenBefore: string) {
-    const after = playMove(fenBefore, attempt.uci);
-    if (!after) return;
-    const epdAfter = toEpd(after.fen);
-    const color = attempt.ply % 2 === 1 ? 'w' : 'b';
     const sessions = this.sessions; // this run's, even if a new run starts before the write
-    this.save(async () => {
-      const db = storage();
-      for (const m of await db.repertoireMovesAt(epdAfter, attempt.uci, color)) {
-        sessions[m.collectionId] ??= (await db.startSession(m.collectionId, m.rootNodeId)).id;
-        await db.recordAttempt({
-          sessionId: sessions[m.collectionId]!,
-          nodeId: m.nodeId,
-          result: attempt.result,
-          playedUci: attempt.playedUci,
-          hints: attempt.hints,
-          timeMs: attempt.timeMs,
-        });
-      }
-    });
+    this.save(() => feedRepertoire(storage(), sessions, attempt, fenBefore));
   }
 
   private save(fn: () => Promise<unknown>) {

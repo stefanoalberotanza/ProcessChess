@@ -509,6 +509,17 @@ export class SqliteStorage implements Storage {
     }));
   }
 
+  async practiceTimes(sinceMs: number) {
+    const slot = sql.raw('900000'); // inlined: a bound parameter would make the division real
+    const rows = await this.db.all<{ slot: number }>(sql`
+      select slot from (
+        select (ts / ${slot}) * ${slot} as slot from attempt where ts >= ${sinceMs}
+        union
+        select (ts / ${slot}) * ${slot} as slot from lab_attempt where ts >= ${sinceMs}
+      ) order by slot asc`);
+    return rows.map((r) => Number(Array.isArray(r) ? r[0] : r.slot));
+  }
+
   async rebuildDerived() {
     await this.tx(async (tx) => {
       const log = await tx

@@ -26,5 +26,6 @@ export type {
 export * from './pgn';
 export * from './position';
 export * from './srs';
+export * from './today';
 export * from './tree';
 export * from './week';
