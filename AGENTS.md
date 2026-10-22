@@ -41,7 +41,7 @@ apps/web/                     SvelteKit app (@processchess/web)
   src/lib/effects.svelte.ts   sound and animation switch (pc.effects); sound.ts: synthesised cues
   src/lib/week.ts             ensureWeek: weekly repertoires (White/Black) created at startup
   src/lib/i18n/               en.ts (keys), it.ts, t()
-  src/lib/components/         TodayPanel, Bishop, EffectsSwitch, RepertoireList, ExplorePanel, LinesView, LabPanel, Mastery, GraphPanel,
+  src/lib/components/         TodayPanel, Bishop, EffectsSwitch, RepertoireList, ExplorePanel, LinesView, MovesView, LabPanel, Mastery, GraphPanel,
                               MiniBoard,
                               FenExport, SideMark,
                               RepertoirePanel, DrillPanel, OpeningBar, MoveTree, MoveHistory,

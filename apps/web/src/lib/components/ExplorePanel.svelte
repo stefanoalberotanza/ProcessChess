@@ -13,6 +13,7 @@
   import type { LabRunSummary } from '@processchess/db';
   import LinesView from '$lib/components/LinesView.svelte';
   import Mastery from '$lib/components/Mastery.svelte';
+  import MovesView from '$lib/components/MovesView.svelte';
   import SideMark from '$lib/components/SideMark.svelte';
   import { srsOfLine } from '$lib/album';
   import { type LabItem, lineKey } from '$lib/lab.svelte';
@@ -60,8 +61,13 @@
   /** Show the openings of one side only. */
   let sideFilter = $state<'all' | 'w' | 'b'>('all');
   const SIDES = ['all', 'w', 'b'] as const;
+  /** Lines: the cards of the reachable openings. Moves: the next moves into them, by side. */
+  let view = $state<'lines' | 'moves'>('lines');
+  const VIEWS = ['lines', 'moves'] as const;
 
   const names = $derived<NameTree | null>(graph ? buildNameTree(graph) : null);
+  /** The Moves view needs the graph and the standard start; otherwise the Lines view shows. */
+  const showMoves = $derived(view === 'moves' && !!graph && standardStart);
 
   /** A pasted FEN (eight ranks) searches by position, whatever move order reached it. */
   function search(g: OpeningGraph, q: string) {
@@ -134,21 +140,45 @@
     <p class="muted">{t('explore.noResults')}</p>
   {/if}
 
-  <div class="filter" role="radiogroup" aria-label={t('side.filter')}>
-    {#each SIDES as v (v)}
-      <button
-        type="button"
-        role="radio"
-        aria-checked={sideFilter === v}
-        onclick={() => (sideFilter = v)}
-      >
-        {#if v !== 'all'}<SideMark side={v} />{/if}
-        {t(`side.${v}`)}
-      </button>
-    {/each}
-  </div>
-
   {#if graph && names && standardStart}
+    <div class="filter" role="radiogroup" aria-label={t('explore.view')}>
+      {#each VIEWS as v (v)}
+        <button type="button" role="radio" aria-checked={view === v} onclick={() => (view = v)}>
+          {t(`explore.view${v === 'lines' ? 'Lines' : 'Moves'}`)}
+        </button>
+      {/each}
+    </div>
+  {/if}
+
+  {#if !showMoves}
+    <div class="filter" role="radiogroup" aria-label={t('side.filter')}>
+      {#each SIDES as v (v)}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={sideFilter === v}
+          onclick={() => (sideFilter = v)}
+        >
+          {#if v !== 'all'}<SideMark side={v} />{/if}
+          {t(`side.${v}`)}
+        </button>
+      {/each}
+    </div>
+  {/if}
+
+  {#if graph && names && showMoves}
+    <MovesView
+      {graph}
+      {names}
+      {ucis}
+      {summaries}
+      {repertoire}
+      onpractice={(it) => onpractice([it], 0)}
+      {onjump}
+      {onadd}
+      {inRepertoire}
+    />
+  {:else if graph && names && standardStart}
     <LinesView
       {graph}
       {names}

@@ -412,6 +412,9 @@ test('opening lab: practise a line, rebuild the moves, history per opening and p
   page,
 }) => {
   await ready(page);
+  // the week repertoires are random per week: one sharing moves with the line would give it
+  // FSRS cards, and those win over the lab streak (ADR 013)
+  await archiveWeek(page);
   await enterOpening(page, 'Sicilian Defense');
   const name = 'Sicilian Defense: Najdorf Variation';
   const row = await lineRow(page, 'Variations', name);
