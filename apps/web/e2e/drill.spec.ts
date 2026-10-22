@@ -180,6 +180,11 @@ test('week repertoires: one per colour, three lines each, selected in Training',
   await expect(black).toBeVisible();
   // the card shows no clean-lines counter
   await expect(white).not.toContainText('lines clean');
+  // selected, the week repertoire lists exactly its 3 lines
+  await white.click();
+  await expect(
+    page.getByRole('list', { name: 'Lines of this repertoire' }).getByRole('button'),
+  ).toHaveCount(3);
   await expect(white.getByTestId('week-badge')).toHaveText('Week');
   // a reload in the same week creates nothing new
   await page.reload();
@@ -198,11 +203,11 @@ test('the selected repertoire opens into its openings and variations', async ({ 
   await importPgnText(page, 'Najdorf', '1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 *');
   const contents = page.getByRole('list', { name: 'Lines of this repertoire' });
   await expect(contents).toBeVisible();
-  // data/openings/b.tsv: B90 Sicilian Defense: Najdorf Variation
-  await expect(
-    contents.getByRole('button', { name: 'Sicilian Defense', exact: true }),
-  ).toBeVisible();
-  await contents.getByRole('button', { name: 'Najdorf Variation', exact: true }).click();
+  // one row per line, named where it ends (data/openings/b.tsv: B90 Najdorf Variation)
+  await expect(contents.getByRole('button')).toHaveCount(1);
+  await contents
+    .getByRole('button', { name: 'Sicilian Defense: Najdorf Variation', exact: true })
+    .click();
   await expect(page.getByTestId('opening-bar')).toContainText('Najdorf Variation');
   // deselected, it closes again
   await page

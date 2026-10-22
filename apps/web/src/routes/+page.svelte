@@ -15,6 +15,7 @@
     lineStatus,
     loadOpeningGraph,
     buildNameTree,
+    repertoireLines,
     repertoireNames,
     weekId,
     weekSource,
@@ -379,6 +380,8 @@
   const nameTree = $derived(graph ? buildNameTree(graph) : null);
   /** The selected repertoire's openings as a name tree (empty for a custom start). */
   const repNames = $derived(nameTree && tree ? repertoireNames(tree, nameTree) : null);
+  /** The selected repertoire's lines, by the name where each ends. */
+  const repLines = $derived(nameTree && tree ? repertoireLines(tree, nameTree) : []);
   /** Drills the repertoire lines under the opening `name`. */
   async function drillName(name: string | null) {
     if (!tree || !selectedId || !repNames || !name) return;
@@ -498,7 +501,7 @@
       oncreate={(name, color) => void create(name, color)}
       onimport={openImport}
       ontogglearchive={(row) => void toggleArchive(row)}
-      contents={repNames}
+      lines={repLines}
       onjumpnode={(id) =>
         tree &&
         goTo(

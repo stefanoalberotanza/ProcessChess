@@ -10,9 +10,10 @@
     practiceLine,
   } from '@processchess/core';
   import type { LabRunSummary } from '@processchess/db';
+  import MiniBoard from '$lib/components/MiniBoard.svelte';
   import Mastery from '$lib/components/Mastery.svelte';
   import SideMark from '$lib/components/SideMark.svelte';
-  import { sanLine, srsOfLine } from '$lib/album';
+  import { sanLine, srsOfLine, tileBoard } from '$lib/album';
   import { type LabItem, lineKey } from '$lib/lab.svelte';
   import { t } from '$lib/i18n/index.svelte';
 
@@ -91,46 +92,57 @@
 {#snippet row(n: NameNode)}
   {@const it = item(n)}
   {@const moves = sanLine(it.line)}
-  <li class="row" data-line={moves}>
-    <span class="sides">
-      {#if n.kind === 'opening' && n.owner === 'both'}
-        <SideMark side="w" /><SideMark side="b" />
-      {:else}
-        <SideMark side={it.side} />
-      {/if}
-    </span>
+  {@const board = tileBoard(n)}
+  <li class="card" data-line={moves}>
     <button
       type="button"
       class="enter"
       onclick={() => go(n)}
       aria-label={t('lab.enter', { name: n.key })}
       title={`${n.key}
-${moves}`}>{labelOf(n)}</button
+${moves}`}
     >
-    <Mastery
-      summary={summaries.get(lineKey(it.line))}
-      srs={srsOfLine(it.line, it.side, repertoire)}
-    />
-    <button
-      type="button"
-      class="play"
-      onclick={() => onpractice(it)}
-      aria-label={t('lab.practise', { name: n.key })}
-      title={t('lab.practise', { name: n.key })}>▶</button
-    >
-    {#if onadd && inRepertoire}
-      {#if inRepertoire(it.line)}
-        <span class="in-rep" title={t('explore.inRepertoire')}>✓</span>
-      {:else}
-        <button
-          type="button"
-          class="add"
-          onclick={() => onadd(it)}
-          aria-label={t('rep.addOpening', { name: n.key })}
-          title={t('rep.addOpening', { name: n.key })}>+</button
-        >
+      <MiniBoard
+        fen={board.fen}
+        lastMove={board.last}
+        orientation={it.side === 'b' ? 'black' : 'white'}
+        size={96}
+      />
+      <span class="label">{labelOf(n)}</span>
+    </button>
+    <div class="foot">
+      <span class="sides">
+        {#if n.kind === 'opening' && n.owner === 'both'}
+          <SideMark side="w" /><SideMark side="b" />
+        {:else}
+          <SideMark side={it.side} />
+        {/if}
+      </span>
+      <Mastery
+        summary={summaries.get(lineKey(it.line))}
+        srs={srsOfLine(it.line, it.side, repertoire)}
+      />
+      <button
+        type="button"
+        class="play"
+        onclick={() => onpractice(it)}
+        aria-label={t('lab.practise', { name: n.key })}
+        title={t('lab.practise', { name: n.key })}>▶</button
+      >
+      {#if onadd && inRepertoire}
+        {#if inRepertoire(it.line)}
+          <span class="in-rep" title={t('explore.inRepertoire')}>✓</span>
+        {:else}
+          <button
+            type="button"
+            class="add"
+            onclick={() => onadd(it)}
+            aria-label={t('rep.addOpening', { name: n.key })}
+            title={t('rep.addOpening', { name: n.key })}>+</button
+          >
+        {/if}
       {/if}
-    {/if}
+    </div>
   </li>
 {/snippet}
 
@@ -218,29 +230,55 @@ ${moves}`}>{labelOf(n)}</button
     list-style: none;
     padding: 0;
     margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    gap: 0.6rem;
   }
-  .row {
+  .card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    overflow: hidden;
+    transition: transform 0.1s;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+  }
+  .enter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: none;
+    padding: 0.5rem 0.4rem 0.3rem;
+    text-align: center;
+  }
+  .label {
+    max-width: 100%;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .foot {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    border-bottom: 1px solid var(--border);
+    justify-content: center;
+    gap: 0.2rem;
+    min-height: 1.6rem;
+    padding: 0 0.2rem 0.3rem;
   }
   .sides {
     display: inline-flex;
     gap: 0.1rem;
-    min-width: 1.4rem;
-  }
-  .enter {
-    flex: 1;
-    min-width: 0;
-    text-align: left;
-    border: none;
-    background: none;
-    padding: 0.35rem 0.3rem;
-    border-radius: 4px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
   }
   .enter:hover,
   .play:hover {
